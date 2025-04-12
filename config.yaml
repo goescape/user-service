@@ -1,0 +1,12 @@
+BASE_URL_PATH: "api"
+PORT: 8080
+
+DB_HOST: localhost
+DB_PORT: 5432
+DB_USERNAME: postgres
+DB_PASSWORD: postgres
+DB_NAME: user_db
+
+REDIS_ADDRESS: "localhost:6739"
+REDIS_PASSWORD: 
+REDIS_DB: 0
