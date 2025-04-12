@@ -1,5 +1,6 @@
 BASE_URL_PATH: "api"
 PORT: 8080
+RPC_PORT: 9090
 
 DB_HOST: localhost
 DB_PORT: 5432

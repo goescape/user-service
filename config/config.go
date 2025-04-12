@@ -8,6 +8,7 @@ import (
 
 type Config struct {
 	Port     string
+	Grpc     RPCConfig
 	Postgres PostgreSQLConfig
 	Redis    RedisConfig
 }
@@ -26,6 +27,10 @@ func Load() (*Config, error) {
 
 	cfg := &Config{
 		Port: viper.GetString("PORT"),
+
+		Grpc: RPCConfig{
+			Port: viper.GetString("RPC_PORT"),
+		},
 
 		Postgres: PostgreSQLConfig{
 			DbHost:        viper.GetString("DB_HOST"),
