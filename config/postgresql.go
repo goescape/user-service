@@ -3,16 +3,20 @@ package config
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	_ "github.com/lib/pq"
 )
 
 type PostgreSQLConfig struct {
-	DbHost     string
-	DbPort     string
-	DbUsername string
-	DbPassword string
-	DbName     string
+	DbHost        string
+	DbPort        string
+	DbUsername    string
+	DbPassword    string
+	DbName        string
+	DbMaxOpenConn int
+	DbMaxIdleConn int
+	DbMaxLifeTime time.Duration
 }
 
 func InitPostgreSQL(cfg PostgreSQLConfig) (*sql.DB, error) {
@@ -27,6 +31,10 @@ func InitPostgreSQL(cfg PostgreSQLConfig) (*sql.DB, error) {
 	if err != nil {
 		panic(err)
 	}
+
+	db.SetMaxOpenConns(cfg.DbMaxOpenConn)
+	db.SetMaxIdleConns(cfg.DbMaxIdleConn)
+	db.SetConnMaxLifetime(time.Minute * cfg.DbMaxLifeTime)
 
 	err = db.Ping()
 	if err != nil {

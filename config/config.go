@@ -28,11 +28,14 @@ func Load() (*Config, error) {
 		Port: viper.GetString("PORT"),
 
 		Postgres: PostgreSQLConfig{
-			DbHost:     viper.GetString("DB_HOST"),
-			DbPort:     viper.GetString("DB_PORT"),
-			DbUsername: viper.GetString("DB_USERNAME"),
-			DbPassword: viper.GetString("DB_PASSWORD"),
-			DbName:     viper.GetString("DB_NAME"),
+			DbHost:        viper.GetString("DB_HOST"),
+			DbPort:        viper.GetString("DB_PORT"),
+			DbUsername:    viper.GetString("DB_USERNAME"),
+			DbPassword:    viper.GetString("DB_PASSWORD"),
+			DbName:        viper.GetString("DB_NAME"),
+			DbMaxOpenConn: viper.GetInt("DB_MAX_OPEN_CONN"),
+			DbMaxIdleConn: viper.GetInt("DB_MAX_IDLE_CONN"),
+			DbMaxLifeTime: viper.GetDuration("DB_MAX_LIFE_TIME"),
 		},
 
 		Redis: RedisConfig{
