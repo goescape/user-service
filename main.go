@@ -41,9 +41,9 @@ func main() {
 }
 
 func initDepedencies(db *sql.DB, rpc *grpc.ClientConn, redis *redis.Client) *routes.Routes {
-	userRepo := repository.NewStore(db)
+	userRepo := repository.NewUserStore(db)
 	userUC := usecases.NewUserUsecase(userRepo, redis)
-	userHandler := handlers.NewHandler(userUC)
+	userHandler := handlers.NewUserHandler(userUC)
 
 	return &routes.Routes{
 		User: userHandler,

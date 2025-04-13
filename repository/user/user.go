@@ -11,12 +11,12 @@ import (
 	"github.com/google/uuid"
 )
 
-type store struct {
+type userStore struct {
 	db *sql.DB
 }
 
-func NewStore(db *sql.DB) *store {
-	return &store{
+func NewUserStore(db *sql.DB) *userStore {
+	return &userStore{
 		db: db,
 	}
 }
@@ -27,7 +27,7 @@ type UserRepository interface {
 	ExistsByName(name string) (bool, error)
 }
 
-func (s *store) Insert(user model.RegisterUser) (*uuid.UUID, error) {
+func (s *userStore) Insert(user model.RegisterUser) (*uuid.UUID, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return nil, fault.Custom(
@@ -61,7 +61,7 @@ func (s *store) Insert(user model.RegisterUser) (*uuid.UUID, error) {
 	return &userId, nil
 }
 
-func (s *store) Detail(req model.GetUserDetailRequest) (*model.User, error) {
+func (s *userStore) Detail(req model.GetUserDetailRequest) (*model.User, error) {
 	baseQuery := `SELECT id, name, email, created_at, updated_at FROM users WHERE `
 	var args []interface{}
 	var conditions []string
@@ -122,7 +122,7 @@ func (s *store) Detail(req model.GetUserDetailRequest) (*model.User, error) {
 	return &user, nil
 }
 
-func (s *store) ExistsByName(name string) (bool, error) {
+func (s *userStore) ExistsByName(name string) (bool, error) {
 	baseQuery := `SELECT COUNT(*) FROM users WHERE name = $1`
 
 	var count int

@@ -11,7 +11,7 @@ import (
 
 type Routes struct {
 	Router *gin.Engine
-	User   *handlers.Handler
+	User   *handlers.UserHandler
 }
 
 func (r *Routes) Setup(baseURL string) {

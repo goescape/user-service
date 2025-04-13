@@ -11,17 +11,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type Handler struct {
+type UserHandler struct {
 	user usecases.UserUsecases
 }
 
-func NewHandler(usecase usecases.UserUsecases) *Handler {
-	return &Handler{
+func NewUserHandler(usecase usecases.UserUsecases) *UserHandler {
+	return &UserHandler{
 		user: usecase,
 	}
 }
 
-func (h *Handler) HandleUserRegister(ctx *gin.Context) {
+func (h *UserHandler) HandleUserRegister(ctx *gin.Context) {
 	var body model.RegisterUser
 
 	if err := ctx.ShouldBindJSON(&body); err != nil {
