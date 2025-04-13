@@ -21,7 +21,7 @@ CREATE DATABASE user_db;
 ```
 
 ```sql
-CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 ```
 
 Ekstensi ini digunakan untuk menghasilkan UUID secara otomatis.
