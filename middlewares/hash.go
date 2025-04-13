@@ -8,7 +8,7 @@ import (
 
 var salt = []byte("secret-password")
 
-func GenerateHashed(password string) string {
+func GeneratePassword(password string) string {
 	timeCost := uint32(1)
 	memCost := uint32(64 * 1024)
 	parallelism := uint8(1)

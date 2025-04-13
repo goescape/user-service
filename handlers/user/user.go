@@ -25,7 +25,7 @@ func (h *Handler) HandleUserRegister(ctx *gin.Context) {
 	var body model.RegisterUser
 
 	if err := ctx.ShouldBindJSON(&body); err != nil {
-		fault.ErrorHandler(ctx, fault.Custom(
+		fault.Response(ctx, fault.Custom(
 			http.StatusBadRequest,
 			fault.ErrBadRequest,
 			fmt.Sprintf("failed to bind JSON: %v", err),
@@ -33,9 +33,9 @@ func (h *Handler) HandleUserRegister(ctx *gin.Context) {
 		return
 	}
 
-	bRes, err := h.user.UserRegister(body)
+	bRes, err := h.user.Register(body)
 	if err != nil {
-		fault.ErrorHandler(ctx, err)
+		fault.Response(ctx, err)
 		return
 	}
 

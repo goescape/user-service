@@ -22,12 +22,12 @@ func NewStore(db *sql.DB) *store {
 }
 
 type UserRepository interface {
-	InsertUser(user model.RegisterUser) (*uuid.UUID, error)
-	GetUserDetail(req model.GetUserDetailRequest) (*model.User, error)
-	UserExistsByName(name string) (bool, error)
+	Insert(user model.RegisterUser) (*uuid.UUID, error)
+	Detail(req model.GetUserDetailRequest) (*model.User, error)
+	ExistsByName(name string) (bool, error)
 }
 
-func (s *store) InsertUser(user model.RegisterUser) (*uuid.UUID, error) {
+func (s *store) Insert(user model.RegisterUser) (*uuid.UUID, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return nil, fault.Custom(
@@ -61,7 +61,7 @@ func (s *store) InsertUser(user model.RegisterUser) (*uuid.UUID, error) {
 	return &userId, nil
 }
 
-func (s *store) GetUserDetail(req model.GetUserDetailRequest) (*model.User, error) {
+func (s *store) Detail(req model.GetUserDetailRequest) (*model.User, error) {
 	baseQuery := `SELECT id, name, email, created_at, updated_at FROM users WHERE `
 	var args []interface{}
 	var conditions []string
@@ -122,7 +122,7 @@ func (s *store) GetUserDetail(req model.GetUserDetailRequest) (*model.User, erro
 	return &user, nil
 }
 
-func (s *store) UserExistsByName(name string) (bool, error) {
+func (s *store) ExistsByName(name string) (bool, error) {
 	baseQuery := `SELECT COUNT(*) FROM users WHERE name = $1`
 
 	var count int

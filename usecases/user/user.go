@@ -30,10 +30,10 @@ func NewUserUsecase(repository repository.UserRepository, redis *redis.Client) *
 }
 
 type UserUsecases interface {
-	UserRegister(body model.RegisterUser) (*model.LoginResponse, error)
+	Register(body model.RegisterUser) (*model.LoginResponse, error)
 }
 
-func (u *userUsecase) UserRegister(body model.RegisterUser) (*model.LoginResponse, error) {
+func (u *userUsecase) Register(body model.RegisterUser) (*model.LoginResponse, error) {
 	ctx := context.TODO()
 	cacheKey := fmt.Sprintf("login:%s", body.Email)
 
@@ -66,7 +66,7 @@ func (u *userUsecase) UserRegister(body model.RegisterUser) (*model.LoginRespons
 		return &res, nil
 	}
 
-	exist, err := u.user.UserExistsByName(body.Name)
+	exist, err := u.user.ExistsByName(body.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -75,22 +75,22 @@ func (u *userUsecase) UserRegister(body model.RegisterUser) (*model.LoginRespons
 	var userId uuid.UUID
 
 	if !exist {
-		body.Password = middlewares.GenerateHashed(body.Password)
+		body.Password = middlewares.GeneratePassword(body.Password)
 
-		createdId, err := u.user.InsertUser(body)
+		createdId, err := u.user.Insert(body)
 		if err != nil {
 			return nil, err
 		}
 		userId = *createdId
 
-		user, err = u.user.GetUserDetail(model.GetUserDetailRequest{
+		user, err = u.user.Detail(model.GetUserDetailRequest{
 			UserId: userId,
 		})
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		user, err = u.user.GetUserDetail(model.GetUserDetailRequest{
+		user, err = u.user.Detail(model.GetUserDetailRequest{
 			Email: body.Email,
 		})
 		if err != nil {

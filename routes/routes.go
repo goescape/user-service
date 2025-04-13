@@ -15,7 +15,7 @@ type Routes struct {
 	User   *handlers.Handler
 }
 
-func (r *Routes) SetupRoutes() {
+func (r *Routes) Setup() {
 	r.Router = gin.New()
 	r.Router.Use(middlewares.EnabledCORS(), middlewares.Logger(r.Router))
 
@@ -41,7 +41,7 @@ func (r *Routes) configureUserRoutes(router *gin.RouterGroup) {
 
 func (r *Routes) Run(port string) {
 	if r.Router == nil {
-		panic("[ROUTER ERROR] Gin Engine has not been initialized. Make sure to call SetupRouter() before Run().")
+		panic("[ROUTER ERROR] Gin Engine has not been initialized. Make sure to call Setup() before Run().")
 	}
 
 	addr := fmt.Sprintf(":%s", port)

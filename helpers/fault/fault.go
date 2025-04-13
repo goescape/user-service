@@ -86,7 +86,7 @@ func Custom(httpStatus int, code ErrorCode, internalMessage string) *DetailedErr
 	return newError(httpStatus, code, internalMessage)
 }
 
-func ErrorHandler(ctx *gin.Context, err error) {
+func Response(ctx *gin.Context, err error) {
 	errors, ok := err.(*DetailedError)
 	if !ok {
 		errors = newError(http.StatusInternalServerError, "Something went wrong", err.Error())
