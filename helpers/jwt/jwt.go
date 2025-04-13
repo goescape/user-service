@@ -12,21 +12,22 @@ import (
 var signedKey = []byte("secret")
 
 type JWTPayload struct {
-	Email  string `json:"email"`
-	UserId string `json:"user_id"`
+	Name   string
+	Email  string
+	UserId string
 	jwt.RegisteredClaims
 }
 
-func CreateAccessToken(email, userId string, tokenExpiry time.Duration) (*string, *JWTPayload, error) {
-	return generateToken(email, userId, tokenExpiry)
+func CreateAccessToken(name, email, userId string, tokenExpiry time.Duration) (*string, *JWTPayload, error) {
+	return generateToken(name, email, userId, tokenExpiry)
 }
 
-func CreateRefreshToken(email, userId string, tokenExpiry time.Duration) (*string, *JWTPayload, error) {
-	return generateToken(email, userId, tokenExpiry)
+func CreateRefreshToken(name, email, userId string, tokenExpiry time.Duration) (*string, *JWTPayload, error) {
+	return generateToken(name, email, userId, tokenExpiry)
 }
 
-func generateToken(email, userId string, duration time.Duration) (*string, *JWTPayload, error) {
-	payload, err := newJWTPayload(email, userId, duration)
+func generateToken(name, email, userId string, duration time.Duration) (*string, *JWTPayload, error) {
+	payload, err := newJWTPayload(name, email, userId, duration)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -43,7 +44,7 @@ func generateToken(email, userId string, duration time.Duration) (*string, *JWTP
 	return &token, payload, nil
 }
 
-func newJWTPayload(email, userId string, duration time.Duration) (*JWTPayload, error) {
+func newJWTPayload(name, email, userId string, duration time.Duration) (*JWTPayload, error) {
 	tokenID, err := uuid.NewRandom()
 	if err != nil {
 		return nil, fault.Custom(
@@ -57,6 +58,7 @@ func newJWTPayload(email, userId string, duration time.Duration) (*JWTPayload, e
 	exp := now.Add(duration)
 
 	return &JWTPayload{
+		Name:   name,
 		Email:  email,
 		UserId: userId,
 		RegisteredClaims: jwt.RegisteredClaims{

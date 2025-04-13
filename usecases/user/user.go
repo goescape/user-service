@@ -63,12 +63,12 @@ func (u *userUsecase) UserRegister(body model.RegisterUser) (*model.LoginRespons
 		refreshTokenExpiry = 72 * time.Hour
 	)
 
-	accessToken, payload, err := jwt.CreateAccessToken(user.Email, userId.String(), tokenExpiry)
+	accessToken, payload, err := jwt.CreateAccessToken(user.Name, user.Email, userId.String(), tokenExpiry)
 	if err != nil {
 		return nil, err
 	}
 
-	refreshToken, refreshPayload, err := jwt.CreateRefreshToken(user.Email, userId.String(), refreshTokenExpiry)
+	refreshToken, refreshPayload, err := jwt.CreateRefreshToken(user.Name, user.Email, userId.String(), refreshTokenExpiry)
 	if err != nil {
 		return nil, err
 	}
