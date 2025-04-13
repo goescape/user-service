@@ -2,6 +2,7 @@ package usecases
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -52,26 +53,17 @@ func (u *userUsecase) UserRegister(body model.RegisterUser) (*model.LoginRespons
 			)
 		}
 
-		accessToken, ok := tokenValue.(string)
-		if !ok {
+		var res model.LoginResponse
+		err = json.Unmarshal([]byte(tokenValue.(string)), &res)
+		if err != nil {
 			return nil, fault.Custom(
 				http.StatusInternalServerError,
 				fault.ErrInternalServer,
-				fmt.Sprintf("cached access token is not a string for key '%s'", cacheKey),
+				fmt.Sprintf("failed to unmarshal cached access token for key '%s': %v", cacheKey, err),
 			)
 		}
 
-		user, err := u.user.GetUserDetail(model.GetUserDetailRequest{
-			Email: body.Email,
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		return &model.LoginResponse{
-			UserData:    *user,
-			AccessToken: accessToken,
-		}, nil
+		return &res, nil
 	}
 
 	exist, err := u.user.UserExistsByName(body.Name)
@@ -117,15 +109,26 @@ func (u *userUsecase) UserRegister(body model.RegisterUser) (*model.LoginRespons
 		return nil, err
 	}
 
-	if err := cache.Set(ctx, u.redis, cacheKey, *accessToken, 10*time.Minute); err != nil {
-		return nil, err
-	}
-
-	return &model.LoginResponse{
+	res := &model.LoginResponse{
 		UserData:              *user,
 		AccessToken:           *accessToken,
 		AccessTokenExpiresAt:  &payload.ExpiresAt.Time,
 		RefreshToken:          *refreshToken,
 		RefreshTokenExpiresAt: &refreshPayload.ExpiresAt.Time,
-	}, nil
+	}
+
+	jsonValue, err := json.Marshal(res)
+	if err != nil {
+		return nil, fault.Custom(
+			http.StatusInternalServerError,
+			fault.ErrInternalServer,
+			fmt.Sprintf("failed to marshal login response to JSON for key '%s': %v", cacheKey, err),
+		)
+	}
+
+	if err := cache.Set(ctx, u.redis, cacheKey, string(jsonValue), 10*time.Minute); err != nil {
+		return nil, err
+	}
+
+	return res, nil
 }
