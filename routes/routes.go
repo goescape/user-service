@@ -7,7 +7,6 @@ import (
 	"user-svc/middlewares"
 
 	"github.com/gin-gonic/gin"
-	"github.com/spf13/viper"
 )
 
 type Routes struct {
@@ -15,21 +14,20 @@ type Routes struct {
 	User   *handlers.Handler
 }
 
-func (r *Routes) Setup() {
+func (r *Routes) Setup(baseURL string) {
 	r.Router = gin.New()
 	r.Router.Use(middlewares.EnabledCORS(), middlewares.Logger(r.Router))
 
-	r.setupAPIRoutes()
-}
-
-func (r *Routes) setupAPIRoutes() {
-	baseURL := viper.GetString("BASE_URL_PATH")
 	if baseURL == "" || baseURL == "/" {
 		baseURL = "/"
 	} else {
 		baseURL = "/" + strings.TrimPrefix(baseURL, "/")
 	}
 
+	r.setupAPIRoutes(baseURL)
+}
+
+func (r *Routes) setupAPIRoutes(baseURL string) {
 	apiGroup := r.Router.Group(baseURL)
 	r.configureUserRoutes(apiGroup)
 }

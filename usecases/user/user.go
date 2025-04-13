@@ -37,13 +37,16 @@ func (u *userUsecase) Register(body model.RegisterUser) (*model.LoginResponse, e
 	ctx := context.TODO()
 	cacheKey := fmt.Sprintf("login:%s", body.Email)
 
-	if cacheExist, err := cache.Exist(ctx, u.redis, cacheKey); err != nil {
+	cacheExist, err := cache.Exist(ctx, u.redis, cacheKey)
+	if err != nil {
 		return nil, fault.Custom(
 			http.StatusInternalServerError,
 			fault.ErrInternalServer,
 			fmt.Sprintf("failed to check Redis key existence for '%s': %v", cacheKey, err),
 		)
-	} else if cacheExist {
+	}
+
+	if cacheExist {
 		tokenValue, err := cache.Get(ctx, u.redis, cacheKey)
 		if err != nil {
 			return nil, fault.Custom(
@@ -126,7 +129,8 @@ func (u *userUsecase) Register(body model.RegisterUser) (*model.LoginResponse, e
 		)
 	}
 
-	if err := cache.Set(ctx, u.redis, cacheKey, string(jsonValue), 10*time.Minute); err != nil {
+	err = cache.Set(ctx, u.redis, cacheKey, string(jsonValue), 10*time.Minute)
+	if err != nil {
 		return nil, err
 	}
 

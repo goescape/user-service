@@ -36,7 +36,7 @@ func main() {
 	}
 
 	routes := initDepedencies(db, rpc, redis)
-	routes.Setup()
+	routes.Setup(cfg.BaseURL)
 	routes.Run(cfg.Port)
 }
 

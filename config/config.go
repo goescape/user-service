@@ -7,6 +7,7 @@ import (
 )
 
 type Config struct {
+	BaseURL  string
 	Port     string
 	Grpc     RPCConfig
 	Postgres PostgreSQLConfig
@@ -26,7 +27,8 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
-		Port: viper.GetString("PORT"),
+		BaseURL: viper.GetString("BASE_URL_PATH"),
+		Port:    viper.GetString("PORT"),
 
 		Grpc: RPCConfig{
 			Port: viper.GetString("RPC_PORT"),

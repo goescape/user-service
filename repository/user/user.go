@@ -43,8 +43,8 @@ func (s *store) Insert(user model.RegisterUser) (*uuid.UUID, error) {
 	if err := tx.QueryRow(baseQuery, user.Name, user.Email, user.Password).Scan(&userId); err != nil {
 		tx.Rollback()
 		return nil, fault.Custom(
-			http.StatusUnprocessableEntity,
-			fault.ErrUnprocessable,
+			http.StatusConflict,
+			fault.ErrConflict,
 			fmt.Sprintf("failed to insert user: %v", err.Error()),
 		)
 	}
@@ -52,8 +52,8 @@ func (s *store) Insert(user model.RegisterUser) (*uuid.UUID, error) {
 	if err := tx.Commit(); err != nil {
 		tx.Rollback()
 		return nil, fault.Custom(
-			http.StatusUnprocessableEntity,
-			fault.ErrUnprocessable,
+			http.StatusConflict,
+			fault.ErrConflict,
 			fmt.Sprintf("failed to commit transaction: %v", err),
 		)
 	}
