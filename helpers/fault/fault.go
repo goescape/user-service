@@ -92,7 +92,12 @@ func Response(ctx *gin.Context, err error) {
 		errors = newError(http.StatusInternalServerError, "Something went wrong", err.Error())
 	}
 
-	log.Println("[ERROR]: ", errors.Internal.Message)
+	if errors.External.HTTPStatus >= http.StatusUnauthorized {
+		log.Printf("[ERROR] status=%d | %s\n",
+			errors.Internal.HTTPStatus,
+			errors.Internal.Message,
+		)
+	}
 
 	response.JSON(ctx, errors.External.HTTPStatus, errors.External.Message, nil)
 }
