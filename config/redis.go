@@ -2,7 +2,6 @@ package config
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -22,7 +21,7 @@ func InitRedis(cfg RedisConfig) (*redis.Client, error) {
 
 	err := rdb.Ping(context.Background()).Err()
 	if err != nil {
-		return nil, fmt.Errorf("failed connect to redis: %w", err)
+		panic(err)
 	}
 
 	return rdb, nil
