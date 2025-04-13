@@ -1,22 +1,30 @@
 package usecases
 
 import (
+	"context"
+	"fmt"
+	"net/http"
 	"time"
+	"user-svc/helpers/cache"
+	"user-svc/helpers/fault"
 	"user-svc/helpers/jwt"
 	"user-svc/middlewares"
 	"user-svc/model"
 	repository "user-svc/repository/user"
 
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
 type userUsecase struct {
-	user repository.UserRepository
+	user  repository.UserRepository
+	redis *redis.Client
 }
 
-func NewUserUsecase(repository repository.UserRepository) *userUsecase {
+func NewUserUsecase(repository repository.UserRepository, redis *redis.Client) *userUsecase {
 	return &userUsecase{
-		user: repository,
+		user:  repository,
+		redis: redis,
 	}
 }
 
@@ -25,6 +33,47 @@ type UserUsecases interface {
 }
 
 func (u *userUsecase) UserRegister(body model.RegisterUser) (*model.LoginResponse, error) {
+	ctx := context.TODO()
+	cacheKey := fmt.Sprintf("login:%s", body.Email)
+
+	if cacheExist, err := cache.Exist(ctx, u.redis, cacheKey); err != nil {
+		return nil, fault.Custom(
+			http.StatusInternalServerError,
+			fault.ErrInternalServer,
+			fmt.Sprintf("failed to check Redis key existence for '%s': %v", cacheKey, err),
+		)
+	} else if cacheExist {
+		tokenValue, err := cache.Get(ctx, u.redis, cacheKey)
+		if err != nil {
+			return nil, fault.Custom(
+				http.StatusInternalServerError,
+				fault.ErrInternalServer,
+				fmt.Sprintf("failed to retrieve access token from Redis for key '%s': %v", cacheKey, err),
+			)
+		}
+
+		accessToken, ok := tokenValue.(string)
+		if !ok {
+			return nil, fault.Custom(
+				http.StatusInternalServerError,
+				fault.ErrInternalServer,
+				fmt.Sprintf("cached access token is not a string for key '%s'", cacheKey),
+			)
+		}
+
+		user, err := u.user.GetUserDetail(model.GetUserDetailRequest{
+			Email: body.Email,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		return &model.LoginResponse{
+			UserData:    *user,
+			AccessToken: accessToken,
+		}, nil
+	}
+
 	exist, err := u.user.UserExistsByName(body.Name)
 	if err != nil {
 		return nil, err
@@ -58,18 +107,17 @@ func (u *userUsecase) UserRegister(body model.RegisterUser) (*model.LoginRespons
 		userId = user.Id
 	}
 
-	var (
-		tokenExpiry        = 30 * time.Minute
-		refreshTokenExpiry = 72 * time.Hour
-	)
-
-	accessToken, payload, err := jwt.CreateAccessToken(user.Name, user.Email, userId.String(), tokenExpiry)
+	accessToken, payload, err := jwt.CreateAccessToken(user.Name, user.Email, userId.String())
 	if err != nil {
 		return nil, err
 	}
 
-	refreshToken, refreshPayload, err := jwt.CreateRefreshToken(user.Name, user.Email, userId.String(), refreshTokenExpiry)
+	refreshToken, refreshPayload, err := jwt.CreateRefreshToken(user.Name, user.Email, userId.String())
 	if err != nil {
+		return nil, err
+	}
+
+	if err := cache.Set(ctx, u.redis, cacheKey, *accessToken, 10*time.Minute); err != nil {
 		return nil, err
 	}
 

@@ -9,6 +9,9 @@ import (
 	"github.com/google/uuid"
 )
 
+const tokenExpiry = 30 * time.Minute
+const refreshTokenExpiry = 72 * time.Hour
+
 var signedKey = []byte("secret")
 
 type JWTPayload struct {
@@ -18,12 +21,12 @@ type JWTPayload struct {
 	jwt.RegisteredClaims
 }
 
-func CreateAccessToken(name, email, userId string, tokenExpiry time.Duration) (*string, *JWTPayload, error) {
+func CreateAccessToken(name, email, userId string) (*string, *JWTPayload, error) {
 	return generateToken(name, email, userId, tokenExpiry)
 }
 
-func CreateRefreshToken(name, email, userId string, tokenExpiry time.Duration) (*string, *JWTPayload, error) {
-	return generateToken(name, email, userId, tokenExpiry)
+func CreateRefreshToken(name, email, userId string) (*string, *JWTPayload, error) {
+	return generateToken(name, email, userId, refreshTokenExpiry)
 }
 
 func generateToken(name, email, userId string, duration time.Duration) (*string, *JWTPayload, error) {
