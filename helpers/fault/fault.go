@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"user-svc/model"
+	"user-svc/helpers/response"
 
 	"github.com/gin-gonic/gin"
 )
@@ -94,8 +94,5 @@ func ErrorHandler(ctx *gin.Context, err error) {
 
 	log.Println("[ERROR]: ", errors.Internal.Message)
 
-	ctx.JSON(errors.External.HTTPStatus, model.ResponseError{
-		StatusCode: errors.External.HTTPStatus,
-		Message:    errors.External.Message,
-	})
+	response.JSON(ctx, errors.External.HTTPStatus, errors.External.Message, nil)
 }

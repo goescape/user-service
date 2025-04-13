@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"user-svc/helpers/fault"
+	"user-svc/helpers/response"
 	"user-svc/model"
 	usecases "user-svc/usecases/user"
 
@@ -32,11 +33,11 @@ func (h *Handler) HandleUserRegister(ctx *gin.Context) {
 		return
 	}
 
-	response, err := h.user.UserRegister(body)
+	bRes, err := h.user.UserRegister(body)
 	if err != nil {
 		fault.ErrorHandler(ctx, err)
 		return
 	}
 
-	ctx.JSON(http.StatusCreated, response)
+	response.JSON(ctx, http.StatusAccepted, "Success", bRes)
 }
