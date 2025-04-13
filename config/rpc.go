@@ -31,6 +31,6 @@ func RPCDial(cfg RPCConfig) (*grpc.ClientConn, error) {
 		return nil, fmt.Errorf("failed to create gRPC client: %w", err)
 	}
 
-	log.Printf("[Success] - Connected to RPC server at %s", address)
+	log.Printf("[Success] - Connected to RPC client at %s", address)
 	return conn, nil
 }

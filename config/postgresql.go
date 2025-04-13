@@ -3,6 +3,7 @@ package config
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -41,5 +42,6 @@ func InitPostgreSQL(cfg PostgreSQLConfig) (*sql.DB, error) {
 		panic(err)
 	}
 
+	log.Printf("[Success] - Connected to PostgreSQL at %s:%s", cfg.DbHost, cfg.DbPort)
 	return db, nil
 }

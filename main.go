@@ -28,6 +28,7 @@ func main() {
 	if err != nil {
 		return
 	}
+	defer redis.Close()
 
 	rpc, err := config.RPCDial(cfg.Grpc)
 	if err != nil {

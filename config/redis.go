@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"log"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -24,5 +25,6 @@ func InitRedis(cfg RedisConfig) (*redis.Client, error) {
 		panic(err)
 	}
 
+	log.Printf("[Success] - Connected to Redis at %s", cfg.Address)
 	return rdb, nil
 }
