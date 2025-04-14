@@ -15,9 +15,9 @@ const refreshTokenExpiry = 72 * time.Hour
 var signedKey = []byte("secret")
 
 type JWTPayload struct {
-	Name   string
-	Email  string
-	UserId string
+	Name   string `json:"name"`
+	Email  string `json:"email"`
+	UserId string `json:"user_id"`
 	jwt.RegisteredClaims
 }
 
