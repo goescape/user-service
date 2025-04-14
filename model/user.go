@@ -26,3 +26,12 @@ type User struct {
 	CreatedAt *time.Time `json:"created_at"`
 	UpdatedAt *time.Time `json:"updated_at"`
 }
+
+type LoginUserReq struct {
+	Email    string `json:"email" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+type LoginUserResp struct {
+	AccessToken string `json:"access_token"`
+}

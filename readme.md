@@ -3,6 +3,7 @@
 Dokumentasi ini menjelaskan langkah-langkah yang perlu dilakukan untuk menjalankan migrasi dan setup database PostgreSQL untuk aplikasi User Service. Panduan ini mencakup pembuatan ekstensi \`uuid-ossp\` dan pembuatan tabel \`users\` yang diperlukan dalam aplikasi.
 
 ## 1. Persiapan
+
 Pastikan kamu sudah memiliki PostgreSQL yang terinstal di sistem atau menggunakan Docker untuk menjalankan PostgreSQL.
 
 Jika menggunakan Docker, kamu bisa menjalankan PostgreSQL menggunakan perintah berikut:
@@ -14,6 +15,7 @@ docker run --name postgresql -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=post
 Untuk melakukan koneksi ke PostgreSQL, pastikan kamu menggunakan \`host=localhost\`, \`port=5432\`, \`user=postgres\`, dan \`password=postgres\`.
 
 ## 2. Database Name / Ekstensi UUID
+
 Untuk mendukung penggunaan tipe data UUID di PostgreSQL, pastikan ekstensi \`uuid-ossp\` sudah diaktifkan. Jalankan perintah berikut pada database PostgreSQL untuk mengaktifkan ekstensi \`uuid-ossp\`:
 
 ```sql
@@ -27,6 +29,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 Ekstensi ini digunakan untuk menghasilkan UUID secara otomatis.
 
 ## 3. Persiapan Tabel Users
+
 ```sql
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -37,3 +40,22 @@ CREATE TABLE users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
+
+## How to generate from proto file
+
+export PATH="$PATH:$(go env GOPATH)/bin"
+
+protoc --proto_path=proto --go_out=proto --go_opt=paths=source_relative proto/product/product.proto
+protoc --proto_path=proto --go-grpc_out=proto --go-grpc_opt=paths=source_relative proto/product/product.proto
+
+protoc proto/product/product.proto \
+  --go_out=. \
+  --go-grpc_out=. \
+  --go_opt=paths=source_relative \
+  --go-grpc_opt=paths=source_relative
+
+find proto -name "*.proto" | xargs protoc \
+  --go_out=. \
+  --go-grpc_out=. \
+  --go_opt=paths=source_relative \
+  --go-grpc_opt=paths=source_relative

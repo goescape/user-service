@@ -3,9 +3,12 @@ package main
 import (
 	"database/sql"
 	"user-svc/config"
+	productHandlers "user-svc/handlers/product"
 	handlers "user-svc/handlers/user"
+	"user-svc/proto/product"
 	repository "user-svc/repository/user"
 	"user-svc/routes"
+	productUsecases "user-svc/usecases/product"
 	usecases "user-svc/usecases/user"
 
 	"github.com/redis/go-redis/v9"
@@ -45,7 +48,12 @@ func initDepedencies(db *sql.DB, rpc *grpc.ClientConn, redis *redis.Client) *rou
 	userUC := usecases.NewUserUsecase(userRepo, redis)
 	userHandler := handlers.NewUserHandler(userUC)
 
+	productGRPCClient := product.NewProductServiceClient(rpc)
+	productUC := productUsecases.NewProductUsecase(productGRPCClient)
+	productHandler := productHandlers.NewProductHandler(productUC)
+
 	return &routes.Routes{
-		User: userHandler,
+		User:    userHandler,
+		Product: productHandler,
 	}
 }

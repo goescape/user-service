@@ -41,3 +41,7 @@ func (h *UserHandler) HandleUserRegister(ctx *gin.Context) {
 
 	response.JSON(ctx, http.StatusAccepted, "Success", bRes)
 }
+
+func (h *UserHandler) HandleUserLogin(c *gin.Context) {
+
+}

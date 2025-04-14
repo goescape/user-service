@@ -3,6 +3,7 @@ package routes
 import (
 	"fmt"
 	"strings"
+	productHandlers "user-svc/handlers/product"
 	handlers "user-svc/handlers/user"
 	"user-svc/middlewares"
 
@@ -10,8 +11,9 @@ import (
 )
 
 type Routes struct {
-	Router *gin.Engine
-	User   *handlers.UserHandler
+	Router  *gin.Engine
+	User    *handlers.UserHandler
+	Product *productHandlers.ProductHandler
 }
 
 func (r *Routes) Setup(baseURL string) {
@@ -30,11 +32,18 @@ func (r *Routes) Setup(baseURL string) {
 func (r *Routes) setupAPIRoutes(baseURL string) {
 	apiGroup := r.Router.Group(baseURL)
 	r.configureUserRoutes(apiGroup)
+	r.configureProductRoutes(apiGroup)
 }
 
 func (r *Routes) configureUserRoutes(router *gin.RouterGroup) {
 	userGroup := router.Group("/user")
 	userGroup.POST("/register", r.User.HandleUserRegister)
+}
+
+func (r *Routes) configureProductRoutes(router *gin.RouterGroup) {
+	productGroup := router.Group("/product")
+	productGroup.POST("/insert", r.Product.InsertProduct)
+	productGroup.GET("/list", r.Product.ListProduct)
 }
 
 func (r *Routes) Run(port string) {
