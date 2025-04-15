@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 	"user-svc/helpers/cache"
@@ -31,6 +32,7 @@ func NewUserUsecase(repository repository.UserRepository, redis *redis.Client) *
 
 type UserUsecases interface {
 	Register(body model.RegisterUser) (*model.LoginResponse, error)
+	Login(ctx context.Context, req *model.LoginUserReq) (*model.LoginResponse, error)
 }
 
 func (u *userUsecase) Register(body model.RegisterUser) (*model.LoginResponse, error) {
@@ -132,6 +134,76 @@ func (u *userUsecase) Register(body model.RegisterUser) (*model.LoginResponse, e
 	err = cache.Set(ctx, u.redis, cacheKey, string(jsonValue), 10*time.Minute)
 	if err != nil {
 		return nil, err
+	}
+
+	return res, nil
+}
+
+func (u *userUsecase) Login(ctx context.Context, req *model.LoginUserReq) (*model.LoginResponse, error) {
+	respDetail, err := u.user.Detail(model.GetUserDetailRequest{
+		Email: req.Email,
+	})
+	if err != nil {
+		log.Default().Println("error getting user detail:", err)
+		return nil, err
+	}
+
+	if respDetail == nil {
+		log.Default().Println("user not found")
+		return nil, fault.Custom(
+			http.StatusNotFound,
+			fault.ErrNotFound,
+			"credential does not match",
+		)
+	}
+
+	if !middlewares.VerifyPassword(respDetail.Password, req.Password) {
+		log.Default().Println("password does not match")
+		return nil, fault.Custom(
+			http.StatusUnauthorized,
+			fault.ErrUnauthorized,
+			"credential does not match",
+		)
+	}
+
+	// remove password from response
+	respDetail.Password = ""
+
+	accessToken, payload, err := jwt.CreateAccessToken(respDetail.Name, respDetail.Email, string(respDetail.Id.String()))
+	if err != nil {
+		return nil, err
+	}
+
+	refreshToken, refreshPayload, err := jwt.CreateRefreshToken(respDetail.Name, respDetail.Email, string(respDetail.Id.String()))
+	if err != nil {
+		return nil, err
+	}
+
+	res := &model.LoginResponse{
+		UserData:              *respDetail,
+		AccessToken:           *accessToken,
+		AccessTokenExpiresAt:  &payload.ExpiresAt.Time,
+		RefreshToken:          *refreshToken,
+		RefreshTokenExpiresAt: &refreshPayload.ExpiresAt.Time,
+	}
+
+	jsonValue, err := json.Marshal(res)
+	if err != nil {
+		return nil, fault.Custom(
+			http.StatusInternalServerError,
+			fault.ErrInternalServer,
+			fmt.Sprintf("failed to marshal login response to JSON: %v", err),
+		)
+	}
+
+	cacheKey := fmt.Sprintf("login:%s", req.Email)
+	err = cache.Set(ctx, u.redis, cacheKey, string(jsonValue), 10*time.Minute)
+	if err != nil {
+		return nil, fault.Custom(
+			http.StatusInternalServerError,
+			fault.ErrInternalServer,
+			fmt.Sprintf("failed to set Redis key '%s': %v", cacheKey, err),
+		)
 	}
 
 	return res, nil

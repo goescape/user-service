@@ -38,6 +38,7 @@ func (r *Routes) setupAPIRoutes(baseURL string) {
 func (r *Routes) configureUserRoutes(router *gin.RouterGroup) {
 	userGroup := router.Group("/user")
 	userGroup.POST("/register", r.User.HandleUserRegister)
+	userGroup.POST("/login", r.User.HandleUserLogin)
 }
 
 func (r *Routes) configureProductRoutes(router *gin.RouterGroup) {

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"user-svc/helpers/fault"
 	"user-svc/helpers/response"
@@ -43,5 +44,24 @@ func (h *UserHandler) HandleUserRegister(ctx *gin.Context) {
 }
 
 func (h *UserHandler) HandleUserLogin(c *gin.Context) {
+	var body model.LoginUserReq
 
+	if err := c.ShouldBindJSON(&body); err != nil {
+		log.Default().Println("error binding JSON:", err)
+		fault.Response(c, fault.Custom(
+			http.StatusBadRequest,
+			fault.ErrBadRequest,
+			fmt.Sprintf("failed to bind JSON: %v", err),
+		))
+		return
+	}
+
+	resp, err := h.user.Login(c.Request.Context(), &body)
+	if err != nil {
+		log.Default().Println("error login:", err)
+		fault.Response(c, err)
+		return
+	}
+
+	response.JSON(c, http.StatusOK, "Success", resp)
 }

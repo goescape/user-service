@@ -20,5 +20,8 @@ func GeneratePassword(password string) string {
 }
 
 func VerifyPassword(hash, password string) bool {
-	return hash == string(argon2.IDKey([]byte(password), salt, 1, 64*1024, 1, 32))
+	newHash := argon2.IDKey([]byte(password), salt, 1, 64*1024, 1, 32)
+	encodedHash := base64.RawStdEncoding.EncodeToString(newHash)
+
+	return hash == encodedHash
 }
