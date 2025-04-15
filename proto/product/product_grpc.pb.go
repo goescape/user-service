@@ -19,8 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ProductService_InsertProduct_FullMethodName = "/proto.ProductService/InsertProduct"
-	ProductService_ListProduct_FullMethodName   = "/proto.ProductService/ListProduct"
+	ProductService_InsertProduct_FullMethodName  = "/proto.ProductService/InsertProduct"
+	ProductService_ListProduct_FullMethodName    = "/proto.ProductService/ListProduct"
+	ProductService_ReduceProducts_FullMethodName = "/proto.ProductService/ReduceProducts"
 )
 
 // ProductServiceClient is the client API for ProductService service.
@@ -29,6 +30,7 @@ const (
 type ProductServiceClient interface {
 	InsertProduct(ctx context.Context, in *ProductInsertRequest, opts ...grpc.CallOption) (*ProductInsertResponse, error)
 	ListProduct(ctx context.Context, in *ListProductRequest, opts ...grpc.CallOption) (*ListProductResponse, error)
+	ReduceProducts(ctx context.Context, in *ReduceProductsRequest, opts ...grpc.CallOption) (*ReduceProductsResponse, error)
 }
 
 type productServiceClient struct {
@@ -59,12 +61,23 @@ func (c *productServiceClient) ListProduct(ctx context.Context, in *ListProductR
 	return out, nil
 }
 
+func (c *productServiceClient) ReduceProducts(ctx context.Context, in *ReduceProductsRequest, opts ...grpc.CallOption) (*ReduceProductsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReduceProductsResponse)
+	err := c.cc.Invoke(ctx, ProductService_ReduceProducts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProductServiceServer is the server API for ProductService service.
 // All implementations must embed UnimplementedProductServiceServer
 // for forward compatibility.
 type ProductServiceServer interface {
 	InsertProduct(context.Context, *ProductInsertRequest) (*ProductInsertResponse, error)
 	ListProduct(context.Context, *ListProductRequest) (*ListProductResponse, error)
+	ReduceProducts(context.Context, *ReduceProductsRequest) (*ReduceProductsResponse, error)
 	mustEmbedUnimplementedProductServiceServer()
 }
 
@@ -80,6 +93,9 @@ func (UnimplementedProductServiceServer) InsertProduct(context.Context, *Product
 }
 func (UnimplementedProductServiceServer) ListProduct(context.Context, *ListProductRequest) (*ListProductResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListProduct not implemented")
+}
+func (UnimplementedProductServiceServer) ReduceProducts(context.Context, *ReduceProductsRequest) (*ReduceProductsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReduceProducts not implemented")
 }
 func (UnimplementedProductServiceServer) mustEmbedUnimplementedProductServiceServer() {}
 func (UnimplementedProductServiceServer) testEmbeddedByValue()                        {}
@@ -138,6 +154,24 @@ func _ProductService_ListProduct_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_ReduceProducts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReduceProductsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ReduceProducts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ReduceProducts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ReduceProducts(ctx, req.(*ReduceProductsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ProductService_ServiceDesc is the grpc.ServiceDesc for ProductService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -152,6 +186,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListProduct",
 			Handler:    _ProductService_ListProduct_Handler,
+		},
+		{
+			MethodName: "ReduceProducts",
+			Handler:    _ProductService_ReduceProducts_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

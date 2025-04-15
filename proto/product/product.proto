@@ -28,6 +28,7 @@ message Product {
 message ListProductRequest {
     uint32 page = 1;
     uint32 limit = 2;
+    string product_ids = 3; // comma separated
 }
 
 message Meta {
@@ -42,7 +43,21 @@ message ListProductResponse {
     Meta meta = 2;
 }
 
+message ReduceProductsRequest {
+    repeated ProductItem items = 1;
+}
+
+message ProductItem {
+    string product_id = 1;
+    uint32 qty = 2;
+}
+
+message ReduceProductsResponse {
+    string msg = 1;
+}
+
 service ProductService {
     rpc InsertProduct(ProductInsertRequest) returns (ProductInsertResponse);
     rpc ListProduct(ListProductRequest) returns (ListProductResponse);
+    rpc ReduceProducts(ReduceProductsRequest) returns (ReduceProductsResponse);
 }

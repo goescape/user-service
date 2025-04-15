@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"user-svc/model"
+	"user-svc/proto/product"
 )
 
 type OrderUsecases interface {
@@ -15,15 +17,65 @@ type OrderUsecases interface {
 
 type orderUsecase struct {
 	ServiceOrderAddress string
+	grpcServer          product.ProductServiceClient
 }
 
-func NewOrderUsecase(serviceOrderAddress string) *orderUsecase {
+func NewOrderUsecase(serviceOrderAddress string, grpcServer product.ProductServiceClient) *orderUsecase {
 	return &orderUsecase{
 		ServiceOrderAddress: serviceOrderAddress,
+		grpcServer:          grpcServer,
 	}
 }
 
 func (ou *orderUsecase) CreateOrder(ctx context.Context, req *model.CreateOrderReq) (*model.CreateOrderResp, error) {
+	var productIds string
+	totalProducts := len(req.Items)
+	reduceProductQty := make([]*product.ProductItem, 0, totalProducts)
+
+	for i, item := range req.Items {
+		productIds += item.ProductId
+		if i < totalProducts-1 {
+			productIds += ","
+		}
+
+		// Prepare the product item for reducing quantity
+		reduceProductQty = append(reduceProductQty, &product.ProductItem{
+			ProductId: item.ProductId,
+			Qty:       uint32(item.Qty),
+		})
+	}
+
+	// Call the product service to check if the products are available
+	productListReq := &product.ListProductRequest{
+		ProductIds: productIds,
+	}
+
+	productListResp, err := ou.grpcServer.ListProduct(ctx, productListReq)
+	if err != nil {
+		log.Default().Println("Failed to call product service:", err)
+		return nil, err
+	}
+
+	// Check if the products are available
+	for _, item := range req.Items {
+		productAvailable := false
+		for _, product := range productListResp.Items {
+			if item.ProductId == product.Id {
+				if int64(product.Qty) < item.Qty {
+					log.Default().Println("Product is out of stock:", product.Id)
+					return nil, errors.New("product is out of stock")
+				}
+				productAvailable = true
+				break
+			}
+		}
+		if !productAvailable {
+			log.Default().Println("Product not found:", item.ProductId)
+			return nil, errors.New("product not found")
+		}
+	}
+
+	// order request
 	url := ou.ServiceOrderAddress + "/api/order/create"
 
 	bodyBytes, err := json.Marshal(req)
@@ -66,7 +118,15 @@ func (ou *orderUsecase) CreateOrder(ctx context.Context, req *model.CreateOrderR
 		return nil, err
 	}
 
-	log.Default().Println("Received response:", respBody)
+	// call the product service to reduce the product quantity
+	reduceProductReq := &product.ReduceProductsRequest{
+		Items: reduceProductQty,
+	}
+	_, err = ou.grpcServer.ReduceProducts(ctx, reduceProductReq)
+	if err != nil {
+		log.Default().Println("Failed to call product service to reduce products:", err)
+		return nil, err
+	}
 
 	return &respBody, nil
 }

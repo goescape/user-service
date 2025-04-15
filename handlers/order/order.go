@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"user-svc/helpers/fault"
 	"user-svc/helpers/jwt"
 	"user-svc/helpers/response"
@@ -11,6 +12,10 @@ import (
 	usecases "user-svc/usecases/order"
 
 	"github.com/gin-gonic/gin"
+)
+
+var (
+	lockOrderRequest sync.Mutex
 )
 
 type OrderHandler struct {
@@ -24,6 +29,9 @@ func NewOrderHandler(service usecases.OrderUsecases) *OrderHandler {
 }
 
 func (h *OrderHandler) CreateOrder(c *gin.Context) {
+	lockOrderRequest.Lock()
+	defer lockOrderRequest.Unlock()
+
 	var req model.CreateOrderReq
 	authHeader := c.GetHeader("Authorization")
 

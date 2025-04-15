@@ -54,7 +54,7 @@ func initDepedencies(cfg *config.Config, db *sql.DB, rpc *grpc.ClientConn, redis
 	productUC := productUsecases.NewProductUsecase(productGRPCClient)
 	productHandler := productHandlers.NewProductHandler(productUC)
 
-	orderUC := orderUsecases.NewOrderUsecase(cfg.ServiceOrderAdress)
+	orderUC := orderUsecases.NewOrderUsecase(cfg.ServiceOrderAdress, productGRPCClient)
 	orderHandler := orderHandlers.NewOrderHandler(orderUC)
 
 	return &routes.Routes{
