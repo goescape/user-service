@@ -74,3 +74,26 @@ func newJWTPayload(name, email, userId string, duration time.Duration) (*JWTPayl
 		},
 	}, nil
 }
+
+func GetClaims(token string) (*JWTPayload, error) {
+	parsedToken, err := jwt.ParseWithClaims(token, &JWTPayload{}, func(token *jwt.Token) (interface{}, error) {
+		return signedKey, nil
+	})
+	if err != nil {
+		return nil, fault.Custom(
+			http.StatusUnauthorized,
+			fault.ErrUnauthorized,
+			"failed to parse token: "+err.Error(),
+		)
+	}
+
+	if claims, ok := parsedToken.Claims.(*JWTPayload); ok && parsedToken.Valid {
+		return claims, nil
+	}
+
+	return nil, fault.Custom(
+		http.StatusUnauthorized,
+		fault.ErrUnauthorized,
+		"invalid token",
+	)
+}

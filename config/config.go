@@ -12,6 +12,8 @@ type Config struct {
 	Grpc     RPCConfig
 	Postgres PostgreSQLConfig
 	Redis    RedisConfig
+
+	ServiceOrderAdress string
 }
 
 func Load() (*Config, error) {
@@ -50,6 +52,8 @@ func Load() (*Config, error) {
 			Password: viper.GetString("REDIS_PASSWORD"),
 			DB:       viper.GetInt("REDIS_DB"),
 		},
+
+		ServiceOrderAdress: viper.GetString("SERVICE_ORDER_ADDRESS"),
 	}
 
 	return cfg, nil
