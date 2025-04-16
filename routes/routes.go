@@ -14,8 +14,8 @@ import (
 type Routes struct {
 	Router  *gin.Engine
 	User    *handlers.UserHandler
-	Product *productHandlers.ProductHandler
-	Order   *orderHandlers.OrderHandler
+	Product *productHandlers.Handler
+	Order   *orderHandlers.Handler
 }
 
 func (r *Routes) Setup(baseURL string) {

@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"log"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -14,33 +14,25 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var (
-	lockOrderRequest sync.Mutex
-)
+var mu sync.Mutex
 
-type OrderHandler struct {
+type Handler struct {
 	service usecases.OrderUsecases
 }
 
-func NewOrderHandler(service usecases.OrderUsecases) *OrderHandler {
-	return &OrderHandler{
+func NewOrderHandler(service usecases.OrderUsecases) *Handler {
+	return &Handler{
 		service: service,
 	}
 }
 
-func (h *OrderHandler) CreateOrder(c *gin.Context) {
-	lockOrderRequest.Lock()
-	defer lockOrderRequest.Unlock()
+func (h *Handler) CreateOrder(ctx *gin.Context) {
+	mu.Lock()
+	defer mu.Unlock()
 
-	var req model.CreateOrderReq
-	authHeader := c.GetHeader("Authorization")
-
-	// Check if the authorization header is present
-
-	if authHeader == "" {
-		log.Default().Println("Authorization header is missing")
-
-		fault.Response(c, fault.Custom(
+	tokenHeader := ctx.GetHeader("Authorization")
+	if tokenHeader == "" {
+		fault.Response(ctx, fault.Custom(
 			http.StatusUnauthorized,
 			fault.ErrUnauthorized,
 			"Authorization header is missing",
@@ -48,14 +40,10 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	// process the token
-	token := strings.TrimPrefix(authHeader, "Bearer ")
-
+	token := strings.TrimPrefix(tokenHeader, "Bearer ")
 	claims, err := jwt.GetClaims(token)
 	if err != nil {
-		log.Default().Println("Failed to parse token claims:", err)
-
-		fault.Response(c, fault.Custom(
+		fault.Response(ctx, fault.Custom(
 			http.StatusUnauthorized,
 			fault.ErrUnauthorized,
 			"Failed to parse token claims",
@@ -63,26 +51,23 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	req.UserId = claims.UserId
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Default().Println("error binding JSON:", err)
-
-		fault.Response(c, fault.Custom(
+	var body model.CreateOrderReq
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		fault.Response(ctx, fault.Custom(
 			http.StatusBadRequest,
 			fault.ErrBadRequest,
-			"failed to bind JSON: "+err.Error(),
+			fmt.Sprintf("failed to bind JSON: %v", err.Error()),
 		))
 		return
 	}
 
-	resp, err := h.service.CreateOrder(c.Request.Context(), &req)
-	if err != nil {
-		log.Default().Println("error creating order:", err)
+	body.UserId = claims.UserId
 
-		fault.Response(c, err)
+	bRes, err := h.service.CreateOrder(ctx.Request.Context(), &body)
+	if err != nil {
+		fault.Response(ctx, err)
 		return
 	}
 
-	response.JSON(c, http.StatusCreated, "Success", resp)
+	response.JSON(ctx, http.StatusCreated, "Success", bRes)
 }

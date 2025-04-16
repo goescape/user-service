@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"user-svc/helpers/fault"
@@ -14,22 +13,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type ProductHandler struct {
+type Handler struct {
 	service usecases.ProductUsecases
 }
 
-func NewProductHandler(service usecases.ProductUsecases) *ProductHandler {
-	return &ProductHandler{
+func NewProductHandler(service usecases.ProductUsecases) *Handler {
+	return &Handler{
 		service: service,
 	}
 }
 
-func (h *ProductHandler) InsertProduct(c *gin.Context) {
+func (h *Handler) InsertProduct(ctx *gin.Context) {
 	var req model.ProductInsertReq
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Default().Println("error binding JSON:", err)
-		fault.Response(c, fault.Custom(
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		fault.Response(ctx, fault.Custom(
 			http.StatusBadRequest,
 			fault.ErrBadRequest,
 			fmt.Sprintf("failed to bind JSON: %v", err),
@@ -37,61 +35,49 @@ func (h *ProductHandler) InsertProduct(c *gin.Context) {
 		return
 	}
 
-	rpcReq := &product.ProductInsertRequest{
+	bRes, err := h.service.InsertProduct(ctx, &product.ProductInsertRequest{
 		Name:        req.Name,
 		Description: req.Description,
 		Price:       req.Price,
 		Qty:         uint32(req.Qty),
-	}
-
-	res, err := h.service.InsertProduct(c.Request.Context(), rpcReq)
+	})
 	if err != nil {
-		log.Default().Println("error inserting product:", err)
-		fault.Response(c, err)
+		fault.Response(ctx, err)
 		return
 	}
 
-	response.JSON(c, http.StatusCreated, "Success", res)
+	response.JSON(ctx, http.StatusCreated, "Success", bRes)
 }
 
-func (h *ProductHandler) ListProduct(c *gin.Context) {
-	// get query param for page and limit
-	page := c.DefaultQuery("page", "1")
-	limit := c.DefaultQuery("limit", "10")
-
-	// convert page and limit to int
-	pageInt, err := strconv.Atoi(page)
+func (h *Handler) ListProduct(ctx *gin.Context) {
+	page, err := strconv.Atoi(ctx.DefaultQuery("page", "1"))
 	if err != nil {
-		log.Default().Println("error converting page to int:", err)
-		fault.Response(c, fault.Custom(
+		fault.Response(ctx, fault.Custom(
 			http.StatusBadRequest,
 			fault.ErrBadRequest,
-			fmt.Sprintf("invalid page number: %v", err),
-		))
-		return
-	}
-	limitInt, err := strconv.Atoi(limit)
-	if err != nil {
-		log.Default().Println("error converting limit to int:", err)
-		fault.Response(c, fault.Custom(
-			http.StatusBadRequest,
-			fault.ErrBadRequest,
-			fmt.Sprintf("invalid limit number: %v", err),
+			fmt.Sprintf("invalid or missing page number: %v", err.Error()),
 		))
 		return
 	}
 
-	rpcReq := &product.ListProductRequest{
-		Page:  uint32(pageInt),
-		Limit: uint32(limitInt),
-	}
-
-	res, err := h.service.ListProduct(c.Request.Context(), rpcReq)
+	limit, err := strconv.Atoi(ctx.DefaultQuery("limit", "10"))
 	if err != nil {
-		log.Default().Println("error listing product:", err)
-		fault.Response(c, err)
+		fault.Response(ctx, fault.Custom(
+			http.StatusBadRequest,
+			fault.ErrBadRequest,
+			fmt.Sprintf("invalid or missing limit number: %v", err.Error()),
+		))
 		return
 	}
 
-	response.JSON(c, http.StatusOK, "Success", res)
+	res, err := h.service.ListProduct(ctx, &product.ListProductRequest{
+		Page:  uint32(page),
+		Limit: uint32(limit),
+	})
+	if err != nil {
+		fault.Response(ctx, err)
+		return
+	}
+
+	response.JSON(ctx, http.StatusOK, "Success", res)
 }

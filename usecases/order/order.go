@@ -11,20 +11,20 @@ import (
 	"user-svc/proto/product"
 )
 
-type OrderUsecases interface {
-	CreateOrder(ctx context.Context, req *model.CreateOrderReq) (*model.CreateOrderResp, error)
-}
-
 type orderUsecase struct {
 	ServiceOrderAddress string
-	grpcServer          product.ProductServiceClient
+	serverRPC           product.ProductServiceClient
 }
 
-func NewOrderUsecase(serviceOrderAddress string, grpcServer product.ProductServiceClient) *orderUsecase {
+func NewOrderUsecase(serviceOrderAddress string, serverRPC product.ProductServiceClient) *orderUsecase {
 	return &orderUsecase{
 		ServiceOrderAddress: serviceOrderAddress,
-		grpcServer:          grpcServer,
+		serverRPC:           serverRPC,
 	}
+}
+
+type OrderUsecases interface {
+	CreateOrder(ctx context.Context, req *model.CreateOrderReq) (*model.CreateOrderResp, error)
 }
 
 func (ou *orderUsecase) CreateOrder(ctx context.Context, req *model.CreateOrderReq) (*model.CreateOrderResp, error) {
@@ -50,7 +50,7 @@ func (ou *orderUsecase) CreateOrder(ctx context.Context, req *model.CreateOrderR
 		ProductIds: productIds,
 	}
 
-	productListResp, err := ou.grpcServer.ListProduct(ctx, productListReq)
+	productListResp, err := ou.serverRPC.ListProduct(ctx, productListReq)
 	if err != nil {
 		log.Default().Println("Failed to call product service:", err)
 		return nil, err
@@ -122,7 +122,7 @@ func (ou *orderUsecase) CreateOrder(ctx context.Context, req *model.CreateOrderR
 	reduceProductReq := &product.ReduceProductsRequest{
 		Items: reduceProductQty,
 	}
-	_, err = ou.grpcServer.ReduceProducts(ctx, reduceProductReq)
+	_, err = ou.serverRPC.ReduceProducts(ctx, reduceProductReq)
 	if err != nil {
 		log.Default().Println("Failed to call product service to reduce products:", err)
 		return nil, err

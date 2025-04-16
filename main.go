@@ -9,8 +9,8 @@ import (
 	"user-svc/proto/product"
 	repository "user-svc/repository/user"
 	"user-svc/routes"
-	orderUsecases "user-svc/usecases/order"
-	productUsecases "user-svc/usecases/product"
+	orderUC "user-svc/usecases/order"
+	productUC "user-svc/usecases/product"
 	usecases "user-svc/usecases/user"
 
 	"github.com/redis/go-redis/v9"
@@ -50,11 +50,11 @@ func initDepedencies(cfg *config.Config, db *sql.DB, rpc *grpc.ClientConn, redis
 	userUC := usecases.NewUserUsecase(userRepo, redis)
 	userHandler := handlers.NewUserHandler(userUC)
 
-	productGRPCClient := product.NewProductServiceClient(rpc)
-	productUC := productUsecases.NewProductUsecase(productGRPCClient)
+	productRPC := product.NewProductServiceClient(rpc)
+	productUC := productUC.NewProductUsecase(productRPC)
 	productHandler := productHandlers.NewProductHandler(productUC)
 
-	orderUC := orderUsecases.NewOrderUsecase(cfg.ServiceOrderAdress, productGRPCClient)
+	orderUC := orderUC.NewOrderUsecase(cfg.ServiceOrderAdress, productRPC)
 	orderHandler := orderHandlers.NewOrderHandler(orderUC)
 
 	return &routes.Routes{
