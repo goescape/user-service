@@ -1,6 +1,7 @@
 package jwt
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 	"user-svc/helpers/fault"
@@ -83,7 +84,7 @@ func GetClaims(token string) (*JWTPayload, error) {
 		return nil, fault.Custom(
 			http.StatusUnauthorized,
 			fault.ErrUnauthorized,
-			"failed to parse token: "+err.Error(),
+			fmt.Sprintf("failed to parse token: %v", err.Error()),
 		)
 	}
 

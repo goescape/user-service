@@ -27,7 +27,7 @@ type User struct {
 	UpdatedAt *time.Time `json:"updated_at"`
 }
 
-type LoginUserReq struct {
+type UserLogin struct {
 	Email    string `json:"email" binding:"required"`
 	Password string `json:"password" binding:"required"`
 }

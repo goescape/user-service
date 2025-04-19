@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 	"user-svc/helpers/cache"
@@ -32,7 +31,7 @@ func NewUserUsecase(repository repository.UserRepository, redis *redis.Client) *
 
 type UserUsecases interface {
 	Register(body model.RegisterUser) (*model.LoginResponse, error)
-	Login(ctx context.Context, req *model.LoginUserReq) (*model.LoginResponse, error)
+	Login(body model.UserLogin) (*model.LoginResponse, error)
 }
 
 func (u *userUsecase) Register(body model.RegisterUser) (*model.LoginResponse, error) {
@@ -139,48 +138,46 @@ func (u *userUsecase) Register(body model.RegisterUser) (*model.LoginResponse, e
 	return res, nil
 }
 
-func (u *userUsecase) Login(ctx context.Context, req *model.LoginUserReq) (*model.LoginResponse, error) {
-	respDetail, err := u.user.Detail(model.GetUserDetailRequest{
-		Email: req.Email,
+func (u *userUsecase) Login(body model.UserLogin) (*model.LoginResponse, error) {
+	ctx := context.TODO()
+
+	user, err := u.user.Detail(model.GetUserDetailRequest{
+		Email: body.Email,
 	})
 	if err != nil {
-		log.Default().Println("error getting user detail:", err)
 		return nil, err
 	}
 
-	if respDetail == nil {
-		log.Default().Println("user not found")
+	if user == nil {
 		return nil, fault.Custom(
 			http.StatusNotFound,
 			fault.ErrNotFound,
-			"credential does not match",
+			"user not found",
 		)
 	}
 
-	if !middlewares.VerifyPassword(respDetail.Password, req.Password) {
-		log.Default().Println("password does not match")
+	if !middlewares.VerifyPassword(user.Password, body.Password) {
 		return nil, fault.Custom(
 			http.StatusUnauthorized,
 			fault.ErrUnauthorized,
-			"credential does not match",
+			"Invalid password, does not match",
 		)
 	}
 
-	// remove password from response
-	respDetail.Password = ""
+	user.Password = ""
 
-	accessToken, payload, err := jwt.CreateAccessToken(respDetail.Name, respDetail.Email, string(respDetail.Id.String()))
+	accessToken, payload, err := jwt.CreateAccessToken(user.Name, user.Email, string(user.Id.String()))
 	if err != nil {
 		return nil, err
 	}
 
-	refreshToken, refreshPayload, err := jwt.CreateRefreshToken(respDetail.Name, respDetail.Email, string(respDetail.Id.String()))
+	refreshToken, refreshPayload, err := jwt.CreateRefreshToken(user.Name, user.Email, string(user.Id.String()))
 	if err != nil {
 		return nil, err
 	}
 
 	res := &model.LoginResponse{
-		UserData:              *respDetail,
+		UserData:              *user,
 		AccessToken:           *accessToken,
 		AccessTokenExpiresAt:  &payload.ExpiresAt.Time,
 		RefreshToken:          *refreshToken,
@@ -196,7 +193,7 @@ func (u *userUsecase) Login(ctx context.Context, req *model.LoginUserReq) (*mode
 		)
 	}
 
-	cacheKey := fmt.Sprintf("login:%s", req.Email)
+	cacheKey := fmt.Sprintf("login:%s", body.Email)
 	err = cache.Set(ctx, u.redis, cacheKey, string(jsonValue), 10*time.Minute)
 	if err != nil {
 		return nil, fault.Custom(

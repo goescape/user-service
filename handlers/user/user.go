@@ -43,7 +43,7 @@ func (h *UserHandler) HandleUserRegister(ctx *gin.Context) {
 }
 
 func (h *UserHandler) HandleUserLogin(c *gin.Context) {
-	var body model.LoginUserReq
+	var body model.UserLogin
 
 	if err := c.ShouldBindJSON(&body); err != nil {
 		fault.Response(c, fault.Custom(
@@ -54,7 +54,7 @@ func (h *UserHandler) HandleUserLogin(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.user.Login(c.Request.Context(), &body)
+	resp, err := h.user.Login(body)
 	if err != nil {
 		fault.Response(c, err)
 		return
