@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -52,6 +53,7 @@ func (h *Handler) CreateOrder(ctx *gin.Context) {
 	}
 
 	var body model.CreateOrderReq
+	body.UserId = claims.UserId
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		fault.Response(ctx, fault.Custom(
 			http.StatusBadRequest,
@@ -61,9 +63,8 @@ func (h *Handler) CreateOrder(ctx *gin.Context) {
 		return
 	}
 
-	body.UserId = claims.UserId
-
 	bRes, err := h.service.CreateOrder(ctx.Request.Context(), &body)
+	log.Printf("%+v", &body)
 	if err != nil {
 		fault.Response(ctx, err)
 		return
@@ -94,21 +95,21 @@ func (h *Handler) HandlePaidOrder(ctx *gin.Context) {
 		return
 	}
 
-	orderId := ctx.Param("order_id")
-	if orderId == "" {
+	var body *model.PayOrderModel
+	if err := ctx.ShouldBindJSON(&body); err != nil {
 		fault.Response(ctx, fault.Custom(
 			http.StatusBadRequest,
 			fault.ErrBadRequest,
-			"Invalid or missing order ID",
+			fmt.Sprintf("failed to bind JSON: %v", err.Error()),
 		))
 		return
 	}
 
-	bRes, err := h.service.PaidOrder(orderId)
+	err = h.service.PaidOrder(body)
 	if err != nil {
 		fault.Response(ctx, err)
 		return
 	}
 
-	response.JSON(ctx, http.StatusAccepted, "Success", bRes)
+	response.JSON(ctx, http.StatusAccepted, "Success", nil)
 }

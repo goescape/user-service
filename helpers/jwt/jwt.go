@@ -98,3 +98,22 @@ func GetClaims(token string) (*JWTPayload, error) {
 		"invalid token",
 	)
 }
+
+func VerifyToken(tokenString string) (*JWTPayload, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &JWTPayload{}, func(token *jwt.Token) (interface{}, error) {
+		return signedKey, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	claims, ok := token.Claims.(*JWTPayload)
+	if !ok || !token.Valid {
+		return nil, jwt.ErrSignatureInvalid
+	}
+
+	return claims, nil
+}
+
+

@@ -14,3 +14,7 @@ type OrderItem struct {
 type CreateOrderResp struct {
 	OrderId string `json:"order_id"`
 }
+
+type PayOrderModel struct {
+	ID string `json:"order_id" db:"order_id"`
+}

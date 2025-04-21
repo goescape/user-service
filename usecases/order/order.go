@@ -5,33 +5,31 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
-	"user-svc/helpers/fault"
 	"user-svc/model"
 	"user-svc/proto/product"
 
-	"github.com/IBM/sarama"
+	kafkaProducer "user-svc/broker/kafka/producer"
 )
 
 type orderUsecase struct {
 	ServiceOrderAddress string
 	serverRPC           product.ProductServiceClient
-	Kafka               *sarama.SyncProducer
+	Producer            kafkaProducer.KafkaProducerInterface
 }
 
-func NewOrderUsecase(serviceOrderAddress string, serverRPC product.ProductServiceClient, kafka *sarama.SyncProducer) *orderUsecase {
+func NewOrderUsecase(serviceOrderAddress string, serverRPC product.ProductServiceClient, p kafkaProducer.KafkaProducerInterface) *orderUsecase {
 	return &orderUsecase{
 		ServiceOrderAddress: serviceOrderAddress,
 		serverRPC:           serverRPC,
-		Kafka:               kafka,
+		Producer:            p,
 	}
 }
 
 type OrderUsecases interface {
 	CreateOrder(ctx context.Context, req *model.CreateOrderReq) (*model.CreateOrderResp, error)
-	PaidOrder(orderId string) (*string, error)
+	PaidOrder(req *model.PayOrderModel) error
 }
 
 func (ou *orderUsecase) CreateOrder(ctx context.Context, req *model.CreateOrderReq) (*model.CreateOrderResp, error) {
@@ -138,19 +136,12 @@ func (ou *orderUsecase) CreateOrder(ctx context.Context, req *model.CreateOrderR
 	return &respBody, nil
 }
 
-func (ou *orderUsecase) PaidOrder(orderId string) (*string, error) {
-	partition, offset, err := (*ou.Kafka).SendMessage(&sarama.ProducerMessage{
-		Topic: "paid",
-		Value: sarama.StringEncoder(orderId),
-	})
+func (ou *orderUsecase) PaidOrder(req *model.PayOrderModel) error {
+	newData, _ := json.Marshal(req)                             // Serialize request ke JSON
+	err := ou.Producer.SendMessage("payOrder", "task", newData) // Kirim ke Kafka
 	if err != nil {
-		return nil, fault.Custom(
-			http.StatusInternalServerError,
-			fault.ErrInternalServer,
-			fmt.Sprintf("failed to send Kafka message: %v", err.Error()),
-		)
+		log.Println(err)
+		return err
 	}
-
-	result := fmt.Sprintf("Message sent to partition %d with offset %d", partition, offset)
-	return &result, nil
+	return nil
 }

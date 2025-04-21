@@ -53,7 +53,7 @@ func (r *Routes) configureProductRoutes(router *gin.RouterGroup) {
 func (r *Routes) configureOrderRoutes(router *gin.RouterGroup) {
 	orderGroup := router.Group("/order")
 	orderGroup.POST("/create", r.Order.CreateOrder)
-	orderGroup.POST("/:order_id/paid", r.Order.HandlePaidOrder)
+	orderGroup.POST("/pay", r.Order.HandlePaidOrder)
 }
 
 func (r *Routes) Run(port string) {
