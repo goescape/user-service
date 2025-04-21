@@ -13,6 +13,7 @@ import (
 	productUC "user-svc/usecases/product"
 	usecases "user-svc/usecases/user"
 
+	"github.com/IBM/sarama"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
 )
@@ -40,12 +41,17 @@ func main() {
 		return
 	}
 
-	routes := initDepedencies(cfg, db, rpc, redis)
+	kafka, err := config.InitKafkaProducer(cfg.Kafka)
+	if err != nil {
+		return
+	}
+
+	routes := initDepedencies(cfg, db, rpc, redis, kafka)
 	routes.Setup(cfg.BaseURL)
 	routes.Run(cfg.Port)
 }
 
-func initDepedencies(cfg *config.Config, db *sql.DB, rpc *grpc.ClientConn, redis *redis.Client) *routes.Routes {
+func initDepedencies(cfg *config.Config, db *sql.DB, rpc *grpc.ClientConn, redis *redis.Client, kafka *sarama.SyncProducer) *routes.Routes {
 	userRepo := repository.NewUserStore(db)
 	userUC := usecases.NewUserUsecase(userRepo, redis)
 	userHandler := handlers.NewUserHandler(userUC)
@@ -54,7 +60,7 @@ func initDepedencies(cfg *config.Config, db *sql.DB, rpc *grpc.ClientConn, redis
 	productUC := productUC.NewProductUsecase(productRPC)
 	productHandler := productHandlers.NewProductHandler(productUC)
 
-	orderUC := orderUC.NewOrderUsecase(cfg.ServiceOrderAdress, productRPC)
+	orderUC := orderUC.NewOrderUsecase(cfg.ServiceOrderAdress, productRPC, kafka)
 	orderHandler := orderHandlers.NewOrderHandler(orderUC)
 
 	return &routes.Routes{

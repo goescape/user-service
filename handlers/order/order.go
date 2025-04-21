@@ -71,3 +71,44 @@ func (h *Handler) CreateOrder(ctx *gin.Context) {
 
 	response.JSON(ctx, http.StatusCreated, "Success", bRes)
 }
+
+func (h *Handler) HandlePaidOrder(ctx *gin.Context) {
+	tokenHeader := ctx.GetHeader("Authorization")
+	if tokenHeader == "" || !strings.HasPrefix(tokenHeader, "Bearer ") {
+		fault.Response(ctx, fault.Custom(
+			http.StatusBadRequest,
+			fault.ErrBadRequest,
+			"Missing or invalid token header",
+		))
+		return
+	}
+
+	token := strings.TrimPrefix(tokenHeader, "Bearer ")
+	_, err := jwt.GetClaims(token)
+	if err != nil {
+		fault.Response(ctx, fault.Custom(
+			http.StatusUnauthorized,
+			fault.ErrUnauthorized,
+			"Failed to parse token claims",
+		))
+		return
+	}
+
+	orderId := ctx.Param("order_id")
+	if orderId == "" {
+		fault.Response(ctx, fault.Custom(
+			http.StatusBadRequest,
+			fault.ErrBadRequest,
+			"Invalid or missing order ID",
+		))
+		return
+	}
+
+	bRes, err := h.service.PaidOrder(orderId)
+	if err != nil {
+		fault.Response(ctx, err)
+		return
+	}
+
+	response.JSON(ctx, http.StatusAccepted, "Success", bRes)
+}

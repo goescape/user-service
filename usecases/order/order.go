@@ -5,26 +5,33 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
+	"user-svc/helpers/fault"
 	"user-svc/model"
 	"user-svc/proto/product"
+
+	"github.com/IBM/sarama"
 )
 
 type orderUsecase struct {
 	ServiceOrderAddress string
 	serverRPC           product.ProductServiceClient
+	Kafka               *sarama.SyncProducer
 }
 
-func NewOrderUsecase(serviceOrderAddress string, serverRPC product.ProductServiceClient) *orderUsecase {
+func NewOrderUsecase(serviceOrderAddress string, serverRPC product.ProductServiceClient, kafka *sarama.SyncProducer) *orderUsecase {
 	return &orderUsecase{
 		ServiceOrderAddress: serviceOrderAddress,
 		serverRPC:           serverRPC,
+		Kafka:               kafka,
 	}
 }
 
 type OrderUsecases interface {
 	CreateOrder(ctx context.Context, req *model.CreateOrderReq) (*model.CreateOrderResp, error)
+	PaidOrder(orderId string) (*string, error)
 }
 
 func (ou *orderUsecase) CreateOrder(ctx context.Context, req *model.CreateOrderReq) (*model.CreateOrderResp, error) {
@@ -129,4 +136,21 @@ func (ou *orderUsecase) CreateOrder(ctx context.Context, req *model.CreateOrderR
 	}
 
 	return &respBody, nil
+}
+
+func (ou *orderUsecase) PaidOrder(orderId string) (*string, error) {
+	partition, offset, err := (*ou.Kafka).SendMessage(&sarama.ProducerMessage{
+		Topic: "paid",
+		Value: sarama.StringEncoder(orderId),
+	})
+	if err != nil {
+		return nil, fault.Custom(
+			http.StatusInternalServerError,
+			fault.ErrInternalServer,
+			fmt.Sprintf("failed to send Kafka message: %v", err.Error()),
+		)
+	}
+
+	result := fmt.Sprintf("Message sent to partition %d with offset %d", partition, offset)
+	return &result, nil
 }
