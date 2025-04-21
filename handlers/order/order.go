@@ -95,7 +95,7 @@ func (h *Handler) HandlePaidOrder(ctx *gin.Context) {
 		return
 	}
 
-	var body *model.PayOrderModel
+	var body *model.PaidOrderRequest
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		fault.Response(ctx, fault.Custom(
 			http.StatusBadRequest,

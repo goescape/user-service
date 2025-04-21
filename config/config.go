@@ -12,7 +12,7 @@ type Config struct {
 	Grpc     RPCConfig
 	Postgres PostgreSQLConfig
 	Redis    RedisConfig
-	Kafka    KafkaConf
+	Kafka    KafkaConfig
 
 	ServiceOrderAdress string
 }
@@ -54,7 +54,7 @@ func Load() (*Config, error) {
 			DB:       viper.GetInt("REDIS_DB"),
 		},
 
-		Kafka: KafkaConf{
+		Kafka: KafkaConfig{
 			Broker:              viper.GetString("KAFKA_BROKERS"),
 			ConsumerGroupPrefix: viper.GetString("KAFKA_CONSUMER_GROUP_PREFIX"),
 			SchemaRegistry:      viper.GetString("KAFKA_SCHEMA_REGISTRY"),

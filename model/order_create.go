@@ -15,6 +15,6 @@ type CreateOrderResp struct {
 	OrderId string `json:"order_id"`
 }
 
-type PayOrderModel struct {
+type PaidOrderRequest struct {
 	ID string `json:"order_id" db:"order_id"`
 }

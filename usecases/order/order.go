@@ -5,31 +5,32 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
+	"user-svc/helpers/broker"
+	"user-svc/helpers/fault"
 	"user-svc/model"
 	"user-svc/proto/product"
-
-	kafkaProducer "user-svc/broker/kafka/producer"
 )
 
 type orderUsecase struct {
-	ServiceOrderAddress string
+	serviceOrderAddress string
 	serverRPC           product.ProductServiceClient
-	Producer            kafkaProducer.KafkaProducerInterface
+	kafka               broker.KafkaProducer
 }
 
-func NewOrderUsecase(serviceOrderAddress string, serverRPC product.ProductServiceClient, p kafkaProducer.KafkaProducerInterface) *orderUsecase {
+func NewOrderUsecase(serviceOrderAddress string, serverRPC product.ProductServiceClient, kafka broker.KafkaProducer) *orderUsecase {
 	return &orderUsecase{
-		ServiceOrderAddress: serviceOrderAddress,
+		serviceOrderAddress: serviceOrderAddress,
 		serverRPC:           serverRPC,
-		Producer:            p,
+		kafka:               kafka,
 	}
 }
 
 type OrderUsecases interface {
 	CreateOrder(ctx context.Context, req *model.CreateOrderReq) (*model.CreateOrderResp, error)
-	PaidOrder(req *model.PayOrderModel) error
+	PaidOrder(req *model.PaidOrderRequest) error
 }
 
 func (ou *orderUsecase) CreateOrder(ctx context.Context, req *model.CreateOrderReq) (*model.CreateOrderResp, error) {
@@ -81,7 +82,7 @@ func (ou *orderUsecase) CreateOrder(ctx context.Context, req *model.CreateOrderR
 	}
 
 	// order request
-	url := ou.ServiceOrderAddress + "/api/order/create"
+	url := ou.serviceOrderAddress + "/api/order/create"
 
 	bodyBytes, err := json.Marshal(req)
 	if err != nil {
@@ -136,12 +137,23 @@ func (ou *orderUsecase) CreateOrder(ctx context.Context, req *model.CreateOrderR
 	return &respBody, nil
 }
 
-func (ou *orderUsecase) PaidOrder(req *model.PayOrderModel) error {
-	newData, _ := json.Marshal(req)                             // Serialize request ke JSON
-	err := ou.Producer.SendMessage("payOrder", "task", newData) // Kirim ke Kafka
+func (ou *orderUsecase) PaidOrder(req *model.PaidOrderRequest) error {
+	payload, err := json.Marshal(req)
 	if err != nil {
-		log.Println(err)
+		return fault.Custom(
+			http.StatusConflict,
+			fault.ErrConflict,
+			fmt.Sprintf("failed to marshal request: %v", err),
+		)
+	}
+
+	if err := ou.kafka.SendMessage(model.KafkaPublish{
+		Topic: "payOrder",
+		Key:   "task",
+		Value: payload,
+	}); err != nil {
 		return err
 	}
+
 	return nil
 }
