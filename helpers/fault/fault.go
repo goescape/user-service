@@ -21,6 +21,8 @@ const (
 	ErrUnprocessable  ErrorCode = "UNPROCESSABLE_ENTITY"
 	ErrForbidden      ErrorCode = "FORBIDDEN"
 	ErrUnknown        ErrorCode = "UNKNOWN"
+	// Error baru untuk kasus retry gagal
+	ErrServiceUnavailable ErrorCode = "SERVICE_UNAVAILABLE"
 )
 
 type errorMessage string
@@ -35,17 +37,20 @@ const (
 	msgUnprocessable  errorMessage = "The request could not be processed."
 	msgForbidden      errorMessage = "You're not in the right place!"
 	msgUnknown        errorMessage = "An unknown error occurred."
+	// Pesan baru untuk error retry gagal
+	msgServiceUnavailable errorMessage = "Service is temporarily unavailable after multiple retry attempts. Please try again later."
 )
 
 var errorMessages = map[ErrorCode]errorMessage{
-	ErrInternalServer: msgInternalServer,
-	ErrUnauthorized:   msgUnauthorized,
-	ErrNotFound:       msgNotFound,
-	ErrBadRequest:     msgBadRequest,
-	ErrTimeout:        msgTimeout,
-	ErrConflict:       msgConflict,
-	ErrUnprocessable:  msgUnprocessable,
-	ErrForbidden:      msgForbidden,
+	ErrInternalServer:     msgInternalServer,
+	ErrUnauthorized:       msgUnauthorized,
+	ErrNotFound:           msgNotFound,
+	ErrBadRequest:         msgBadRequest,
+	ErrTimeout:            msgTimeout,
+	ErrConflict:           msgConflict,
+	ErrUnprocessable:      msgUnprocessable,
+	ErrForbidden:          msgForbidden,
+	ErrServiceUnavailable: msgServiceUnavailable,
 }
 
 type ErrorResponse struct {

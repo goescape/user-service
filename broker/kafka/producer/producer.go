@@ -41,5 +41,7 @@ func (k *KafkaProducer) SendMessage(topic string, key string, value []byte) erro
 
 	// Log jika pengiriman pesan berhasil
 	log.Printf("Pesan terkirim ke topic [%s], partition [%d], offset [%d]", topic, partition, offset)
+	// “Pesan terkirim ke topic [payOrder], partition [0], offset [3]” berarti: 
+	// Kamu baru aja meletakkan pesanan ke kasir #0 dari payOrder, dan ini adalah pesanan ke-4 di antrian kasir itu.
 	return nil
 }
