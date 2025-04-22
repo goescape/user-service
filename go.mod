@@ -10,6 +10,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/lib/pq v1.10.9
 	github.com/redis/go-redis/v9 v9.7.3
+	github.com/sony/gobreaker v1.0.0
 	github.com/spf13/viper v1.20.1
 	golang.org/x/crypto v0.37.0
 	google.golang.org/grpc v1.71.1

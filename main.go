@@ -16,6 +16,7 @@ import (
 
 	"github.com/IBM/sarama"
 	"github.com/redis/go-redis/v9"
+	"github.com/sony/gobreaker"
 	"google.golang.org/grpc"
 )
 
@@ -48,12 +49,22 @@ func main() {
 	}
 	defer (*kafka).Close()
 
-	routes := initDepedencies(cfg, db, rpc, redis, kafka)
+	breaker := config.InitBreaker()
+
+	routes := initDepedencies(cfg, db, rpc, redis, kafka, breaker)
 	routes.Setup(cfg.BaseURL)
 	routes.Run(cfg.Port)
 }
 
-func initDepedencies(cfg *config.Config, db *sql.DB, rpc *grpc.ClientConn, redis *redis.Client, kafka *sarama.SyncProducer) *routes.Routes {
+func initDepedencies(
+	cfg *config.Config,
+	db *sql.DB,
+	rpc *grpc.ClientConn,
+	redis *redis.Client,
+	kafka *sarama.SyncProducer,
+	breaker *gobreaker.Settings,
+) *routes.Routes {
+
 	userRepo := repository.NewUserStore(db)
 	userUC := usecases.NewUserUsecase(userRepo, redis)
 	userHandler := handlers.NewUserHandler(userUC)
@@ -63,7 +74,7 @@ func initDepedencies(cfg *config.Config, db *sql.DB, rpc *grpc.ClientConn, redis
 	productHandler := productHandlers.NewProductHandler(productUC)
 
 	producer := broker.NewProducer(*kafka)
-	orderUC := orderUC.NewOrderUsecase(cfg.ServiceOrderAdress, productRPC, producer)
+	orderUC := orderUC.NewOrderUsecase(cfg.ServiceOrderAdress, productRPC, producer, *breaker)
 	orderHandler := orderHandlers.NewOrderHandler(orderUC)
 
 	return &routes.Routes{

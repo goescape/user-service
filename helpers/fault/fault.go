@@ -21,6 +21,7 @@ const (
 	ErrUnprocessable  ErrorCode = "UNPROCESSABLE_ENTITY"
 	ErrForbidden      ErrorCode = "FORBIDDEN"
 	ErrUnknown        ErrorCode = "UNKNOWN"
+	ErrUnavailable    ErrorCode = "UNAVAILABLE"
 )
 
 type errorMessage string
@@ -35,6 +36,7 @@ const (
 	msgUnprocessable  errorMessage = "The request could not be processed."
 	msgForbidden      errorMessage = "You're not in the right place!"
 	msgUnknown        errorMessage = "An unknown error occurred."
+	msgUnavailable    errorMessage = "Service unavailable"
 )
 
 var errorMessages = map[ErrorCode]errorMessage{
@@ -46,6 +48,7 @@ var errorMessages = map[ErrorCode]errorMessage{
 	ErrConflict:       msgConflict,
 	ErrUnprocessable:  msgUnprocessable,
 	ErrForbidden:      msgForbidden,
+	ErrUnavailable:    msgUnavailable,
 }
 
 type ErrorResponse struct {
