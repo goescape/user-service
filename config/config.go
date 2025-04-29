@@ -34,7 +34,8 @@ func Load() (*Config, error) {
 		Port:    viper.GetString("PORT"),
 
 		Grpc: RPCConfig{
-			Port: viper.GetString("RPC_PORT"),
+			Port:    viper.GetString("RPC_PORT"),
+			Address: viper.GetString("SERVICE_PRODUCT_ADDRESS"),
 		},
 
 		Postgres: PostgreSQLConfig{
