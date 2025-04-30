@@ -14,7 +14,8 @@ type Config struct {
 	Redis    RedisConfig
 	Kafka    KafkaConfig
 
-	ServiceOrderAdress string
+	ServiceOrderAdress   string
+	ServiceProductAdress string
 }
 
 func Load() (*Config, error) {
@@ -61,7 +62,8 @@ func Load() (*Config, error) {
 			SchemaRegistry:      viper.GetString("KAFKA_SCHEMA_REGISTRY"),
 		},
 
-		ServiceOrderAdress: viper.GetString("SERVICE_ORDER_ADDRESS"),
+		ServiceOrderAdress:   viper.GetString("SERVICE_ORDER_ADDRESS"),
+		ServiceProductAdress: viper.GetString("SERVICE_PRODUCT_ADDRESS"),
 	}
 
 	return cfg, nil
