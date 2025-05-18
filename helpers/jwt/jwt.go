@@ -10,11 +10,14 @@ import (
 	"github.com/google/uuid"
 )
 
-const tokenExpiry = 30 * time.Minute
-const refreshTokenExpiry = 72 * time.Hour
+const (
+	tokenExpiry        = 30 * time.Minute // Durasi berlaku token akses
+	refreshTokenExpiry = 72 * time.Hour   // Durasi berlaku refresh token
+)
 
-var signedKey = []byte("secret")
+var signedKey = []byte("secret") // Kunci rahasia untuk tanda tangan JWT
 
+// JWTPayload Struktur payload JWT berisi info user dan klaim standar JWT
 type JWTPayload struct {
 	Name   string `json:"name"`
 	Email  string `json:"email"`
@@ -22,14 +25,17 @@ type JWTPayload struct {
 	jwt.RegisteredClaims
 }
 
+// CreateAccessToken Buat token akses dengan durasi tokenExpiry
 func CreateAccessToken(name, email, userId string) (*string, *JWTPayload, error) {
 	return generateToken(name, email, userId, tokenExpiry)
 }
 
+// CreateRefreshToken Buat refresh token dengan durasi refreshTokenExpiry
 func CreateRefreshToken(name, email, userId string) (*string, *JWTPayload, error) {
 	return generateToken(name, email, userId, refreshTokenExpiry)
 }
 
+// Generate token JWT dengan payload dan tanda tangan menggunakan HS256
 func generateToken(name, email, userId string, duration time.Duration) (*string, *JWTPayload, error) {
 	payload, err := newJWTPayload(name, email, userId, duration)
 	if err != nil {
@@ -48,6 +54,7 @@ func generateToken(name, email, userId string, duration time.Duration) (*string,
 	return &token, payload, nil
 }
 
+// Buat payload JWT baru dengan klaim yang lengkap dan expired time
 func newJWTPayload(name, email, userId string, duration time.Duration) (*JWTPayload, error) {
 	tokenID, err := uuid.NewRandom()
 	if err != nil {
@@ -66,16 +73,17 @@ func newJWTPayload(name, email, userId string, duration time.Duration) (*JWTPayl
 		Email:  email,
 		UserId: userId,
 		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    "user_login",
-			Subject:   "go-escape",
-			ID:        tokenID.String(),
-			IssuedAt:  jwt.NewNumericDate(now),
-			NotBefore: jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(exp),
+			Issuer:    "user_login",            // Pengeluarnya token
+			Subject:   "go-escape",             // Subjek token
+			ID:        tokenID.String(),        // ID unik token
+			IssuedAt:  jwt.NewNumericDate(now), // Waktu dibuat token
+			NotBefore: jwt.NewNumericDate(now), // Token berlaku sejak waktu ini
+			ExpiresAt: jwt.NewNumericDate(exp), // Waktu kadaluarsa token
 		},
 	}, nil
 }
 
+// GetClaims Ambil klaim dari token string, cek validitas dan signature
 func GetClaims(token string) (*JWTPayload, error) {
 	parsedToken, err := jwt.ParseWithClaims(token, &JWTPayload{}, func(token *jwt.Token) (interface{}, error) {
 		return signedKey, nil
@@ -99,6 +107,7 @@ func GetClaims(token string) (*JWTPayload, error) {
 	)
 }
 
+// VerifyToken Verifikasi token dan kembalikan klaim jika valid
 func VerifyToken(tokenString string) (*JWTPayload, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &JWTPayload{}, func(token *jwt.Token) (interface{}, error) {
 		return signedKey, nil
@@ -115,5 +124,3 @@ func VerifyToken(tokenString string) (*JWTPayload, error) {
 
 	return claims, nil
 }
-
-

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -12,36 +13,36 @@ import (
 )
 
 type userStore struct {
-	db *sql.DB
+	db *sql.DB // Menyimpan koneksi database
 }
 
 func NewUserStore(db *sql.DB) *userStore {
 	return &userStore{
-		db: db,
+		db: db, // Inisialisasi userStore dengan DB
 	}
 }
 
 type UserRepository interface {
-	Insert(user model.RegisterUser) (*uuid.UUID, error)
-	Detail(req model.GetUserDetailRequest) (*model.User, error)
-	ExistsByName(name string) (bool, error)
+	Insert(user model.RegisterUser) (*uuid.UUID, error)         // Menambahkan user baru
+	Detail(req model.GetUserDetailRequest) (*model.User, error) // Mendapatkan detail user berdasarkan filter
+	ExistsByName(name string) (bool, error)                     // Mengecek apakah user dengan nama tertentu ada
 }
 
 func (s *userStore) Insert(user model.RegisterUser) (*uuid.UUID, error) {
-	tx, err := s.db.Begin()
+	tx, err := s.db.Begin() // Mulai transaksi
 	if err != nil {
 		return nil, fault.Custom(
 			http.StatusConflict,
 			fault.ErrConflict,
 			fmt.Sprintf("failed start db transaction: %v", err.Error()))
 	}
-	defer tx.Rollback()
+	defer tx.Rollback() // Rollback jika transaksi gagal
 
 	baseQuery := `INSERT INTO users (name, email, password) VALUES ($1, $2, $3) RETURNING id`
 
 	var userId uuid.UUID
 	if err := tx.QueryRow(baseQuery, user.Name, user.Email, user.Password).Scan(&userId); err != nil {
-		tx.Rollback()
+		tx.Rollback() // Rollback eksplisit jika insert gagal
 		return nil, fault.Custom(
 			http.StatusConflict,
 			fault.ErrConflict,
@@ -50,7 +51,7 @@ func (s *userStore) Insert(user model.RegisterUser) (*uuid.UUID, error) {
 	}
 
 	if err := tx.Commit(); err != nil {
-		tx.Rollback()
+		tx.Rollback() // Rollback eksplisit jika commit gagal
 		return nil, fault.Custom(
 			http.StatusConflict,
 			fault.ErrConflict,
@@ -67,6 +68,7 @@ func (s *userStore) Detail(req model.GetUserDetailRequest) (*model.User, error) 
 	var conditions []string
 	argPos := 1
 
+	// Tambahkan kondisi berdasarkan filter yang diberikan
 	if req.UserId != uuid.Nil {
 		conditions = append(conditions, fmt.Sprintf("id = $%d", argPos))
 		args = append(args, req.UserId)
@@ -86,6 +88,7 @@ func (s *userStore) Detail(req model.GetUserDetailRequest) (*model.User, error) 
 	}
 
 	if len(conditions) == 0 {
+		// Validasi jika tidak ada filter diberikan
 		return nil, fault.Custom(
 			http.StatusBadRequest,
 			fault.ErrBadRequest,
@@ -106,13 +109,15 @@ func (s *userStore) Detail(req model.GetUserDetailRequest) (*model.User, error) 
 	)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Tidak ditemukan user
 			return nil, fault.Custom(
 				http.StatusNotFound,
 				fault.ErrNotFound,
 				"user not found based on provided filters",
 			)
 		}
+		// Error lain saat query
 		return nil, fault.Custom(
 			http.StatusInternalServerError,
 			fault.ErrInternalServer,
@@ -127,7 +132,7 @@ func (s *userStore) ExistsByName(name string) (bool, error) {
 	baseQuery := `SELECT COUNT(*) FROM users WHERE name = $1`
 
 	var count int
-	err := s.db.QueryRow(baseQuery, name).Scan(&count)
+	err := s.db.QueryRow(baseQuery, name).Scan(&count) // Hitung user dengan nama tertentu
 	if err != nil {
 		return false, fault.Custom(
 			http.StatusInternalServerError,

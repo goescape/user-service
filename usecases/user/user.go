@@ -17,11 +17,13 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// userUsecase mengimplementasikan logic bisnis terkait user
 type userUsecase struct {
-	user  repository.UserRepository
-	redis *redis.Client
+	user  repository.UserRepository // Interface ke DB
+	redis *redis.Client             // Redis client untuk caching
 }
 
+// Constructor untuk userUsecase
 func NewUserUsecase(repository repository.UserRepository, redis *redis.Client) *userUsecase {
 	return &userUsecase{
 		user:  repository,
@@ -29,15 +31,18 @@ func NewUserUsecase(repository repository.UserRepository, redis *redis.Client) *
 	}
 }
 
+// Interface untuk semua fungsi yang tersedia di usecase user
 type UserUsecases interface {
 	Register(body model.RegisterUser) (*model.LoginResponse, error)
 	Login(body model.UserLogin) (*model.LoginResponse, error)
 }
 
+// Register mendaftarkan user baru atau mengembalikan token jika sudah ada cache-nya
 func (u *userUsecase) Register(body model.RegisterUser) (*model.LoginResponse, error) {
 	ctx := context.TODO()
 	cacheKey := fmt.Sprintf("login:%s", body.Email)
 
+	// Cek apakah data user sudah ada di Redis
 	cacheExist, err := cache.Exist(ctx, u.redis, cacheKey)
 	if err != nil {
 		return nil, fault.Custom(
@@ -47,6 +52,7 @@ func (u *userUsecase) Register(body model.RegisterUser) (*model.LoginResponse, e
 		)
 	}
 
+	// Jika ada cache login, langsung ambil dari Redis
 	if cacheExist {
 		tokenValue, err := cache.Get(ctx, u.redis, cacheKey)
 		if err != nil {
@@ -70,6 +76,7 @@ func (u *userUsecase) Register(body model.RegisterUser) (*model.LoginResponse, e
 		return &res, nil
 	}
 
+	// Cek apakah user sudah pernah terdaftar berdasarkan nama
 	exist, err := u.user.ExistsByName(body.Name)
 	if err != nil {
 		return nil, err
@@ -78,6 +85,7 @@ func (u *userUsecase) Register(body model.RegisterUser) (*model.LoginResponse, e
 	var user *model.User
 	var userId uuid.UUID
 
+	// Jika belum ada, daftarkan user baru
 	if !exist {
 		body.Password = middlewares.GeneratePassword(body.Password)
 
@@ -87,6 +95,7 @@ func (u *userUsecase) Register(body model.RegisterUser) (*model.LoginResponse, e
 		}
 		userId = *createdId
 
+		// Ambil detail user baru berdasarkan ID
 		user, err = u.user.Detail(model.GetUserDetailRequest{
 			UserId: userId,
 		})
@@ -94,6 +103,7 @@ func (u *userUsecase) Register(body model.RegisterUser) (*model.LoginResponse, e
 			return nil, err
 		}
 	} else {
+		// Kalau sudah ada user, ambil datanya berdasarkan email
 		user, err = u.user.Detail(model.GetUserDetailRequest{
 			Email: body.Email,
 		})
@@ -103,6 +113,7 @@ func (u *userUsecase) Register(body model.RegisterUser) (*model.LoginResponse, e
 		userId = user.Id
 	}
 
+	// Generate JWT access & refresh token
 	accessToken, payload, err := jwt.CreateAccessToken(user.Name, user.Email, userId.String())
 	if err != nil {
 		return nil, err
@@ -113,6 +124,7 @@ func (u *userUsecase) Register(body model.RegisterUser) (*model.LoginResponse, e
 		return nil, err
 	}
 
+	// Bentuk response
 	res := &model.LoginResponse{
 		UserData:              *user,
 		AccessToken:           *accessToken,
@@ -121,6 +133,7 @@ func (u *userUsecase) Register(body model.RegisterUser) (*model.LoginResponse, e
 		RefreshTokenExpiresAt: &refreshPayload.ExpiresAt.Time,
 	}
 
+	// Simpan response ke Redis sebagai cache
 	jsonValue, err := json.Marshal(res)
 	if err != nil {
 		return nil, fault.Custom(
@@ -138,9 +151,11 @@ func (u *userUsecase) Register(body model.RegisterUser) (*model.LoginResponse, e
 	return res, nil
 }
 
+// Login memverifikasi kredensial user dan mengembalikan token login
 func (u *userUsecase) Login(body model.UserLogin) (*model.LoginResponse, error) {
 	ctx := context.TODO()
 
+	// Ambil detail user berdasarkan email
 	user, err := u.user.Detail(model.GetUserDetailRequest{
 		Email: body.Email,
 	})
@@ -148,6 +163,7 @@ func (u *userUsecase) Login(body model.UserLogin) (*model.LoginResponse, error) 
 		return nil, err
 	}
 
+	// Jika user tidak ditemukan
 	if user == nil {
 		return nil, fault.Custom(
 			http.StatusNotFound,
@@ -156,6 +172,7 @@ func (u *userUsecase) Login(body model.UserLogin) (*model.LoginResponse, error) 
 		)
 	}
 
+	// Verifikasi password yang dimasukkan
 	if !middlewares.VerifyPassword(user.Password, body.Password) {
 		return nil, fault.Custom(
 			http.StatusUnauthorized,
@@ -164,8 +181,10 @@ func (u *userUsecase) Login(body model.UserLogin) (*model.LoginResponse, error) 
 		)
 	}
 
+	// Bersihkan password sebelum dikembalikan
 	user.Password = ""
 
+	// Generate token JWT
 	accessToken, payload, err := jwt.CreateAccessToken(user.Name, user.Email, string(user.Id.String()))
 	if err != nil {
 		return nil, err
@@ -176,6 +195,7 @@ func (u *userUsecase) Login(body model.UserLogin) (*model.LoginResponse, error) 
 		return nil, err
 	}
 
+	// Bentuk response
 	res := &model.LoginResponse{
 		UserData:              *user,
 		AccessToken:           *accessToken,
@@ -184,6 +204,7 @@ func (u *userUsecase) Login(body model.UserLogin) (*model.LoginResponse, error) 
 		RefreshTokenExpiresAt: &refreshPayload.ExpiresAt.Time,
 	}
 
+	// Simpan response login ke Redis untuk caching
 	jsonValue, err := json.Marshal(res)
 	if err != nil {
 		return nil, fault.Custom(
