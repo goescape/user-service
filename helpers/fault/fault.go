@@ -34,6 +34,8 @@ const (
 	ErrUnknown ErrorCode = "UNKNOWN"
 	// ErrUnavailable Service sedang tidak tersedia (503)
 	ErrUnavailable ErrorCode = "UNAVAILABLE"
+	// Error baru untuk kasus retry gagal
+	ErrServiceUnavailable ErrorCode = "SERVICE_UNAVAILABLE"
 )
 
 type errorMessage string
@@ -51,19 +53,22 @@ const (
 	msgForbidden      errorMessage = "You're not in the right place!"
 	msgUnknown        errorMessage = "An unknown error occurred."
 	msgUnavailable    errorMessage = "Service unavailable"
+	// Pesan baru untuk error retry gagal
+	msgServiceUnavailable errorMessage = "Service is temporarily unavailable after multiple retry attempts. Please try again later."
 )
 
 // Pemetaan kode error ke pesan eksternal
 var errorMessages = map[ErrorCode]errorMessage{
-	ErrInternalServer: msgInternalServer,
-	ErrUnauthorized:   msgUnauthorized,
-	ErrNotFound:       msgNotFound,
-	ErrBadRequest:     msgBadRequest,
-	ErrTimeout:        msgTimeout,
-	ErrConflict:       msgConflict,
-	ErrUnprocessable:  msgUnprocessable,
-	ErrForbidden:      msgForbidden,
-	ErrUnavailable:    msgUnavailable,
+	ErrInternalServer:     msgInternalServer,
+	ErrUnauthorized:       msgUnauthorized,
+	ErrNotFound:           msgNotFound,
+	ErrBadRequest:         msgBadRequest,
+	ErrTimeout:            msgTimeout,
+	ErrConflict:           msgConflict,
+	ErrUnprocessable:      msgUnprocessable,
+	ErrForbidden:          msgForbidden,
+	ErrUnavailable:        msgUnavailable,
+	ErrServiceUnavailable: msgServiceUnavailable,
 }
 
 type ErrorResponse struct {
