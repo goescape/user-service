@@ -10,41 +10,52 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	"user-svc/helpers/broker"
-	"user-svc/helpers/fault"
 	"user-svc/model"
 	"user-svc/proto/product"
+
+	kafkaProducer "user-svc/broker/kafka/producer"
 
 	"github.com/sony/gobreaker"
 )
 
 type orderUsecase struct {
-	serviceOrderAddress string
+	ServiceOrderAddress string
 	serverRPC           product.ProductServiceClient
-	kafka               broker.KafkaProducer
+	Producer            kafkaProducer.KafkaProducerInterface
 	productBreaker      *gobreaker.CircuitBreaker
-	orderBreaker        *gobreaker.CircuitBreaker
+	orderServiceBreaker *gobreaker.CircuitBreaker
 }
 
-func NewOrderUsecase(serviceOrderAddress string, serverRPC product.ProductServiceClient, kafka broker.KafkaProducer, breaker gobreaker.Settings) *orderUsecase {
-	orderCB := breaker
-	orderCB.Name = "OrderServiceBreaker"
+func NewOrderUsecase(serviceOrderAddress string, serverRPC product.ProductServiceClient, p kafkaProducer.KafkaProducerInterface) *orderUsecase {
+	cbSettings := gobreaker.Settings{
+		Name:        "ProductServiceBreaker",
+		MaxRequests: 3,
+		Interval:    60 * time.Second,
+		Timeout:     10 * time.Second,
+		ReadyToTrip: func(counts gobreaker.Counts) bool {
+			return counts.ConsecutiveFailures > 3 // circuit akan open jika gagal 3 kali berturut-turut
+		},
+	}
+
+	orderCBSettings := cbSettings
+	orderCBSettings.Name = "OrderServiceBreaker" // breaker berbeda untuk service order dan product
 
 	return &orderUsecase{
-		serviceOrderAddress: serviceOrderAddress,
+		ServiceOrderAddress: serviceOrderAddress,
 		serverRPC:           serverRPC,
-		kafka:               kafka,
-		productBreaker:      gobreaker.NewCircuitBreaker(breaker),
-		orderBreaker:        gobreaker.NewCircuitBreaker(orderCB),
+		Producer:            p,
+		productBreaker:      gobreaker.NewCircuitBreaker(cbSettings),
+		orderServiceBreaker: gobreaker.NewCircuitBreaker(orderCBSettings),
 	}
 }
 
 type OrderUsecases interface {
 	CreateOrder(ctx context.Context, req *model.CreateOrderReq) (*model.CreateOrderResp, error)
-	PaidOrder(req *model.PaidOrderRequest) error
-	CreateOrderWithBreaker(ctx context.Context, body model.CreateOrderReq) (*model.CreateOrderResp, error)
+	PaidOrder(req *model.PayOrderModel) error
+	CreateOrderDenganBreaker(ctx context.Context, req *model.CreateOrderReq) (*model.CreateOrderResp, error)
 }
 
+// dengan retry
 func (ou *orderUsecase) CreateOrder(ctx context.Context, req *model.CreateOrderReq) (*model.CreateOrderResp, error) {
 	var productIds string
 	totalProducts := len(req.Items)
@@ -55,8 +66,6 @@ func (ou *orderUsecase) CreateOrder(ctx context.Context, req *model.CreateOrderR
 		if i < totalProducts-1 {
 			productIds += ","
 		}
-
-		// Prepare the product item for reducing quantity
 		reduceProductQty = append(reduceProductQty, &product.ProductItem{
 			ProductId: item.ProductId,
 			Qty:       uint32(item.Qty),
@@ -77,13 +86,12 @@ func (ou *orderUsecase) CreateOrder(ctx context.Context, req *model.CreateOrderR
 		return nil, errors.New("SERVICE_UNAVAILABLE")
 	}
 
-	// Check if the products are available
 	for _, item := range req.Items {
 		productAvailable := false
 		for _, product := range productListResp.Items {
 			if item.ProductId == product.Id {
 				if int64(product.Qty) < item.Qty {
-					log.Default().Println("Product is out of stock:", product.Id)
+					log.Printf("[ERROR] Product %s out of stock. Requested: %d, Available: %d", product.Id, item.Qty, product.Qty)
 					return nil, errors.New("product is out of stock")
 				}
 				productAvailable = true
@@ -91,23 +99,23 @@ func (ou *orderUsecase) CreateOrder(ctx context.Context, req *model.CreateOrderR
 			}
 		}
 		if !productAvailable {
-			log.Default().Println("Product not found:", item.ProductId)
+			log.Printf("[ERROR] Product not found: %s", item.ProductId)
 			return nil, errors.New("product not found")
 		}
 	}
 
-	// order request
-	url := ou.serviceOrderAddress + "/api/order/create"
+	url := ou.ServiceOrderAddress + "/api/order/create"
+	log.Printf("[INFO] Sending create order request to %s", url)
 
 	bodyBytes, err := json.Marshal(req)
 	if err != nil {
-		log.Default().Println("Failed to marshal request body:", err)
+		log.Printf("[ERROR] Failed to marshal request body: %v", err)
 		return nil, err
 	}
 
 	reqClient, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(bodyBytes))
 	if err != nil {
-		log.Default().Println("Failed to create request:", err)
+		log.Printf("[ERROR] Failed to create HTTP request: %v", err)
 		return nil, err
 	}
 	reqClient = reqClient.WithContext(ctx)
@@ -128,64 +136,43 @@ func (ou *orderUsecase) CreateOrder(ctx context.Context, req *model.CreateOrderR
 
 	if resp.StatusCode != http.StatusOK {
 		var respBodyFailed any
-		err = json.NewDecoder(resp.Body).Decode(&respBodyFailed)
-		if err != nil {
-			log.Default().Println("error when decode failed resp body:", err)
+		if err := json.NewDecoder(resp.Body).Decode(&respBodyFailed); err != nil {
+			log.Printf("[ERROR] Failed to decode error response: %v", err)
 			return nil, err
 		}
-
-		log.Default().Println("Received non-200 response:", resp.Status, resp.StatusCode, respBodyFailed)
-		return nil, err
+		log.Printf("[ERROR] Non-200 response from order service: %d - %v", resp.StatusCode, respBodyFailed)
+		return nil, fmt.Errorf("non-200 response from order service")
 	}
 
 	var respBody model.CreateOrderResp
 	if err := json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
-		log.Default().Println("error when decode resp body:", err)
+		log.Printf("[ERROR] Failed to decode success response: %v", err)
 		return nil, err
 	}
 
-	// call the product service to reduce the product quantity
-	reduceProductReq := &product.ReduceProductsRequest{
-		Items: reduceProductQty,
-	}
-	_, err = ou.serverRPC.ReduceProducts(ctx, reduceProductReq)
+	log.Printf("[INFO] Order created successfully with ID: %s", respBody.OrderId)
+
+	reduceProductReq := &product.ReduceProductsRequest{Items: reduceProductQty}
+	err = retry(2, 25*time.Second, func() error {
+		_, callErr := ou.serverRPC.ReduceProducts(ctx, reduceProductReq)
+		return callErr
+	})
 	if err != nil {
-		log.Default().Println("Failed to call product service to reduce products:", err)
+		log.Printf("[ERROR] Failed to reduce product quantity after retries: %v", err)
 		return nil, err
 	}
 
+	log.Printf("[INFO] Product quantities reduced successfully")
 	return &respBody, nil
 }
 
-func (ou *orderUsecase) PaidOrder(req *model.PaidOrderRequest) error {
-	payload, err := json.Marshal(req)
-	if err != nil {
-		return fault.Custom(
-			http.StatusConflict,
-			fault.ErrConflict,
-			fmt.Sprintf("failed to marshal request: %v", err),
-		)
-	}
+// dengan breaker
+func (ou *orderUsecase) CreateOrderDenganBreaker(ctx context.Context, req *model.CreateOrderReq) (*model.CreateOrderResp, error) {
+	// Persiapan ID produk dan payload reduce stock
+	var productIds []string
+	reduceProductQty := make([]*product.ProductItem, 0, len(req.Items))
 
-	if err := ou.kafka.SendMessage(model.KafkaPublish{
-		Topic: "payOrder",
-		Key:   "task",
-		Value: payload,
-	}); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (ou *orderUsecase) CreateOrderWithBreaker(ctx context.Context, body model.CreateOrderReq) (*model.CreateOrderResp, error) {
-	var (
-		productIds       []string
-		reduceProductQty = make([]*product.ProductItem, 0, len(body.Items))
-	)
-
-	// Kumpulkan product ID dan quantity
-	for _, item := range body.Items {
+	for _, item := range req.Items {
 		productIds = append(productIds, item.ProductId)
 		reduceProductQty = append(reduceProductQty, &product.ProductItem{
 			ProductId: item.ProductId,
@@ -193,25 +180,17 @@ func (ou *orderUsecase) CreateOrderWithBreaker(ctx context.Context, body model.C
 		})
 	}
 
-	joinedProductIds := strings.Join(productIds, ",")
-
-	// Panggil service produk dengan circuit breaker
-	producList, err := ou.productBreaker.Execute(func() (interface{}, error) {
-		return ou.serverRPC.ListProduct(ctx, &product.ListProductRequest{
-			ProductIds: joinedProductIds,
-		})
-	})
-	if err != nil {
-		log.Printf("[CB] Product Breaker Error: %v", err)
-		return nil, fault.Custom(
-			http.StatusServiceUnavailable,
-			fault.ErrUnavailable,
-			fmt.Sprintf("service unavailable: %v", err),
-		)
+	// --- Circuit Breaker untuk Product Service ---
+	productListReq := &product.ListProductRequest{
+		ProductIds: strings.Join(productIds, ","),
 	}
 
-	// Logging state circuit breaker
-	switch ou.productBreaker.State() {
+	productListRespIface, err := ou.productBreaker.Execute(func() (interface{}, error) {
+		return ou.serverRPC.ListProduct(ctx, productListReq) // gRPC call dibungkus circuit breaker
+	})
+
+	state := ou.productBreaker.State()
+	switch state {
 	case gobreaker.StateClosed:
 		log.Println("[CB] Product Breaker State: CLOSED")
 	case gobreaker.StateOpen:
@@ -219,116 +198,90 @@ func (ou *orderUsecase) CreateOrderWithBreaker(ctx context.Context, body model.C
 	case gobreaker.StateHalfOpen:
 		log.Println("[CB] Product Breaker State: HALF-OPEN")
 	}
-
-	products, ok := producList.(*product.ListProductResponse)
-	if !ok {
-		return nil, fault.Custom(
-			http.StatusInternalServerError,
-			fault.ErrInternalServer,
-			"invalid product list response type",
-		)
+	if err != nil {
+		log.Println("[CB] Failed to call product service:", err)
+		return nil, errors.New("SERVICE_UNAVAILABLE")
 	}
+	productListResp := productListRespIface.(*product.ListProductResponse)
 
-	// Validasi ketersediaan produk
-	for _, item := range body.Items {
-		var found bool
-		for _, product := range products.Items {
-			if item.ProductId != product.Id {
-				continue
+	// Validasi apakah semua produk tersedia dan mencukupi jumlahnya
+	for _, item := range req.Items {
+		found := false
+		for _, p := range productListResp.Items {
+			if item.ProductId == p.Id {
+				if int64(p.Qty) < item.Qty {
+					log.Println("Product out of stock:", p.Id)
+					return nil, errors.New("product out of stock")
+				}
+				found = true
+				break
 			}
-			if product.Qty < uint32(item.Qty) {
-				return nil, fault.Custom(
-					http.StatusUnprocessableEntity,
-					fault.ErrUnprocessable,
-					"product out of stock",
-				)
-			}
-			found = true
-			break
 		}
-
 		if !found {
-			return nil, fault.Custom(
-				http.StatusNotFound,
-				fault.ErrNotFound,
-				"product not found",
-			)
+			log.Println("Product not found:", item.ProductId)
+			return nil, errors.New("product not found")
 		}
 	}
 
-	// Marshal body order
-	bodyBytes, err := json.Marshal(body)
+	// --- Kirim HTTP Request ke Order Service ---
+	bodyBytes, err := json.Marshal(req)
 	if err != nil {
-		return nil, fault.Custom(
-			http.StatusInternalServerError,
-			fault.ErrInternalServer,
-			fmt.Sprintf("failed marshaling body: %v", err),
-		)
+		log.Println("Failed to marshal order request:", err)
+		return nil, err
 	}
 
-	orderURL := fmt.Sprintf("%s/api/order/create", ou.serviceOrderAddress)
-
-	// Panggil service order dengan circuit breaker
-	resOrder, err := ou.orderBreaker.Execute(func() (interface{}, error) {
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, orderURL, bytes.NewBuffer(bodyBytes))
+	orderURL := ou.ServiceOrderAddress + "/api/order/create"
+	orderRespIface, err := ou.orderServiceBreaker.Execute(func() (interface{}, error) {
+		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, orderURL, bytes.NewBuffer(bodyBytes))
 		if err != nil {
-			return nil, fault.Custom(
-				http.StatusUnprocessableEntity,
-				fault.ErrUnprocessable,
-				fmt.Sprintf("failed to create order request: %v", err),
-			)
+			return nil, err
 		}
-		req.Header.Set("Content-Type", "application/json")
+		httpReq.Header.Set("Content-Type", "application/json")
 
-		res, err := http.DefaultClient.Do(req)
+		resp, err := http.DefaultClient.Do(httpReq) // HTTP call dibungkus circuit breaker
 		if err != nil {
-			return nil, fault.Custom(
-				http.StatusUnprocessableEntity,
-				fault.ErrUnprocessable,
-				fmt.Sprintf("failed to call order service: %v", err),
-			)
+			return nil, err
 		}
-		defer res.Body.Close()
+		defer resp.Body.Close()
 
-		if res.StatusCode != http.StatusOK {
-			return nil, fault.Custom(
-				http.StatusServiceUnavailable,
-				fault.ErrUnavailable,
-				"order service returned non-200",
-			)
+		if resp.StatusCode != http.StatusOK {
+			var failResp any
+			json.NewDecoder(resp.Body).Decode(&failResp)
+			log.Println("Order service returned non-200:", resp.StatusCode, failResp)
+			return nil, errors.New("SERVICE_UNAVAILABLE")
 		}
 
-		var apiResponse model.CreateOrderResp
-		if err := json.NewDecoder(res.Body).Decode(&apiResponse); err != nil {
-			return nil, fault.Custom(
-				http.StatusInternalServerError,
-				fault.ErrInternalServer,
-				fmt.Sprintf("failed to decode order response: %v", err),
-			)
+		var successResp model.CreateOrderResp
+		err = json.NewDecoder(resp.Body).Decode(&successResp)
+		if err != nil {
+			return nil, err
 		}
-
-		return apiResponse, nil
+		return &successResp, nil
 	})
 	if err != nil {
-		return nil, fault.Custom(
-			http.StatusInternalServerError,
-			fault.ErrInternalServer,
-			fmt.Sprintf("failed to call order service: %v", err),
-		)
+		log.Println("[CB] Failed to call order service:", err)
+		return nil, err
+	}
+	orderResp := orderRespIface.(*model.CreateOrderResp)
+
+	// --- Reduce Stock (tanpa circuit breaker, bisa dipertimbangkan ditambah) ---
+	reduceReq := &product.ReduceProductsRequest{Items: reduceProductQty}
+	if _, err := ou.serverRPC.ReduceProducts(ctx, reduceReq); err != nil {
+		log.Println("Failed to reduce product stock:", err)
+		// Tidak return error agar order tetap sukses
 	}
 
-	order := resOrder.(model.CreateOrderResp)
+	return orderResp, nil
+}
 
-	// Kurangi stok produk
-	_, err = ou.serverRPC.ReduceProducts(ctx, &product.ReduceProductsRequest{
-		Items: reduceProductQty,
-	})
+func (ou *orderUsecase) PaidOrder(req *model.PayOrderModel) error {
+	newData, _ := json.Marshal(req)                             // Serialize request ke JSON
+	err := ou.Producer.SendMessage("payOrder", "task", newData) // Kirim ke Kafka
 	if err != nil {
-		log.Printf("failed to reduce product stock: %v", err)
-		// Optional: bisa return error atau lanjut tergantung business rule
+		log.Println(err)
+		return err
 	}
-
-	return &order, nil
+	return nil
 }
 
 func retry(attempts int, sleep time.Duration, fn func() error) error {

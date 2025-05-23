@@ -66,6 +66,7 @@ func (r *Routes) configureOrderRoutes(router *gin.RouterGroup) {
 	orderGroup := router.Group("/order")
 	orderGroup.POST("/create", r.Order.CreateOrder)
 	orderGroup.POST("/pay", r.Order.HandlePaidOrder)
+	orderGroup.POST("/create/breaker", r.Order.CreateOrderDeanganBreaker)
 }
 
 // Run menjalankan HTTP server pada port yang ditentukan
