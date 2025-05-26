@@ -13,20 +13,18 @@ import (
 	"user-svc/model"
 	"user-svc/proto/product"
 
-	kafkaProducer "user-svc/broker/kafka/producer"
-
 	"github.com/sony/gobreaker"
 )
 
 type orderUsecase struct {
 	ServiceOrderAddress string
 	serverRPC           product.ProductServiceClient
-	Producer            kafkaProducer.KafkaProducerInterface
+	// Producer            kafkaProducer.KafkaProducerInterface
 	productBreaker      *gobreaker.CircuitBreaker
 	orderServiceBreaker *gobreaker.CircuitBreaker
 }
 
-func NewOrderUsecase(serviceOrderAddress string, serverRPC product.ProductServiceClient, p kafkaProducer.KafkaProducerInterface) *orderUsecase {
+func NewOrderUsecase(serviceOrderAddress string, serverRPC product.ProductServiceClient) *orderUsecase {
 	cbSettings := gobreaker.Settings{
 		Name:        "ProductServiceBreaker",
 		MaxRequests: 3,
@@ -43,7 +41,7 @@ func NewOrderUsecase(serviceOrderAddress string, serverRPC product.ProductServic
 	return &orderUsecase{
 		ServiceOrderAddress: serviceOrderAddress,
 		serverRPC:           serverRPC,
-		Producer:            p,
+		// Producer:            p,
 		productBreaker:      gobreaker.NewCircuitBreaker(cbSettings),
 		orderServiceBreaker: gobreaker.NewCircuitBreaker(orderCBSettings),
 	}
@@ -55,35 +53,24 @@ type OrderUsecases interface {
 	CreateOrderDenganBreaker(ctx context.Context, req *model.CreateOrderReq) (*model.CreateOrderResp, error)
 }
 
-// dengan retry
 func (ou *orderUsecase) CreateOrder(ctx context.Context, req *model.CreateOrderReq) (*model.CreateOrderResp, error) {
 	var productIds string
 	totalProducts := len(req.Items)
-	reduceProductQty := make([]*product.ProductItem, 0, totalProducts)
 
 	for i, item := range req.Items {
 		productIds += item.ProductId
 		if i < totalProducts-1 {
 			productIds += ","
 		}
-		reduceProductQty = append(reduceProductQty, &product.ProductItem{
-			ProductId: item.ProductId,
-			Qty:       uint32(item.Qty),
-		})
 	}
 
 	log.Printf("[INFO] Listing product details for IDs: %s", productIds)
 	productListReq := &product.ListProductRequest{ProductIds: productIds}
 	var productListResp *product.ListProductResponse
 
-	err := retry(2, 40*time.Second, func() error {
-		var callErr error
-		productListResp, callErr = ou.serverRPC.ListProduct(ctx, productListReq)
-		return callErr
-	})
+	productListResp, err := ou.serverRPC.ListProduct(ctx, productListReq)
 	if err != nil {
-		log.Printf("[ERROR] Failed to call ListProduct after retries: %v", err)
-		return nil, errors.New("SERVICE_UNAVAILABLE")
+		return nil, fmt.Errorf("failed get list product: %v", err)
 	}
 
 	for _, item := range req.Items {
@@ -124,12 +111,9 @@ func (ou *orderUsecase) CreateOrder(ctx context.Context, req *model.CreateOrderR
 	client := &http.Client{}
 	var resp *http.Response
 
-	err = retry(1, 25*time.Second, func() error {
-		resp, err = client.Do(reqClient)
-		return err
-	})
+	resp, err = client.Do(reqClient)
 	if err != nil {
-		log.Printf("[ERROR] Failed to send HTTP request after retries: %v", err)
+		log.Printf("[ERROR] Failed to send HTTP request: %v", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -151,18 +135,6 @@ func (ou *orderUsecase) CreateOrder(ctx context.Context, req *model.CreateOrderR
 	}
 
 	log.Printf("[INFO] Order created successfully with ID: %s", respBody.OrderId)
-
-	reduceProductReq := &product.ReduceProductsRequest{Items: reduceProductQty}
-	err = retry(2, 25*time.Second, func() error {
-		_, callErr := ou.serverRPC.ReduceProducts(ctx, reduceProductReq)
-		return callErr
-	})
-	if err != nil {
-		log.Printf("[ERROR] Failed to reduce product quantity after retries: %v", err)
-		return nil, err
-	}
-
-	log.Printf("[INFO] Product quantities reduced successfully")
 	return &respBody, nil
 }
 
@@ -275,25 +247,5 @@ func (ou *orderUsecase) CreateOrderDenganBreaker(ctx context.Context, req *model
 }
 
 func (ou *orderUsecase) PaidOrder(req *model.PayOrderModel) error {
-	newData, _ := json.Marshal(req)                             // Serialize request ke JSON
-	err := ou.Producer.SendMessage("payOrder", "task", newData) // Kirim ke Kafka
-	if err != nil {
-		log.Println(err)
-		return err
-	}
 	return nil
-}
-
-func retry(attempts int, sleep time.Duration, fn func() error) error {
-	var err error
-	for i := 0; i < attempts; i++ {
-		err = fn()
-		if err == nil {
-			return nil // sukses
-		}
-		log.Printf("[Retry %d/%d] Error: %v", i+1, attempts, err)
-		time.Sleep(sleep)
-		sleep *= 2 // exponential backoff
-	}
-	return fmt.Errorf("after %d attempts, last error: %w", attempts, err)
 }

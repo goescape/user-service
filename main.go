@@ -3,7 +3,6 @@ package main
 import (
 	"database/sql"
 	"log"
-	kafka "user-svc/broker/kafka"
 	"user-svc/config"
 	orderHandlers "user-svc/handlers/order"
 	productHandlers "user-svc/handlers/product"
@@ -14,8 +13,6 @@ import (
 	orderUC "user-svc/usecases/order"
 	productUC "user-svc/usecases/product"
 	usecases "user-svc/usecases/user"
-
-	producer "user-svc/broker/kafka/producer"
 
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc"
@@ -46,20 +43,12 @@ func main() {
 	}
 	log.Println("cek2")
 
-	Kafka, err := kafka.NewKafkaProducer(cfg.Kafka)
-	if err != nil {
-		log.Println(err)
-		log.Fatalf("Failed to initialize Kafka: %s", err)
-	}
-
-	publisher := producer.NewKafkaProducer(*Kafka)
-
-	routes := initDepedencies(cfg, db, rpc, redis, publisher)
+	routes := initDepedencies(cfg, db, rpc, redis)
 	routes.Setup(cfg.BaseURL)
 	routes.Run(cfg.Port)
 }
 
-func initDepedencies(cfg *config.Config, db *sql.DB, rpc *grpc.ClientConn, redis *redis.Client, p producer.KafkaProducerInterface) *routes.Routes {
+func initDepedencies(cfg *config.Config, db *sql.DB, rpc *grpc.ClientConn, redis *redis.Client) *routes.Routes {
 	userRepo := repository.NewUserStore(db)
 	userUC := usecases.NewUserUsecase(userRepo, redis)
 	userHandler := handlers.NewUserHandler(userUC)
@@ -68,7 +57,7 @@ func initDepedencies(cfg *config.Config, db *sql.DB, rpc *grpc.ClientConn, redis
 	productUC := productUC.NewProductUsecase(productRPC)
 	productHandler := productHandlers.NewProductHandler(productUC)
 
-	orderUC := orderUC.NewOrderUsecase(cfg.ServiceOrderAdress, productRPC, p)
+	orderUC := orderUC.NewOrderUsecase(cfg.ServiceOrderAdress, productRPC)
 	orderHandler := orderHandlers.NewOrderHandler(orderUC)
 
 	return &routes.Routes{
