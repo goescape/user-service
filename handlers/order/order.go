@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -64,7 +63,7 @@ func (h *Handler) CreateOrder(ctx *gin.Context) {
 	}
 
 	bRes, err := h.service.CreateOrder(ctx.Request.Context(), &body)
-	log.Printf("%+v", &body)
+
 	if err != nil {
 		// Cek error retry khusus
 		if strings.Contains(err.Error(), "service unavailable") {
@@ -162,7 +161,7 @@ func (h *Handler) CreateOrderDeanganBreaker(ctx *gin.Context) {
 	}
 
 	bRes, err := h.service.CreateOrderDenganBreaker(ctx.Request.Context(), &body)
-	log.Printf("%+v", &body)
+
 	if err != nil {
 		// Cek error retry khusus
 		if strings.Contains(err.Error(), "SERVICE_UNAVAILABLE") {

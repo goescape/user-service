@@ -39,12 +39,12 @@ func main() {
 	}
 	defer redis.Close()
 
-	log.Println("cek")
+	
 	rpc, err := config.RPCDial(cfg.Grpc)
 	if err != nil {
 		return
 	}
-	log.Println("cek2")
+	
 
 	Kafka, err := kafka.NewKafkaProducer(cfg.Kafka)
 	if err != nil {
