@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	tokenExpiry        = 30 * time.Minute // Durasi berlaku token akses
+	tokenExpiry        = 1024 * time.Minute // Durasi berlaku token akses
 	refreshTokenExpiry = 72 * time.Hour   // Durasi berlaku refresh token
 )
 

@@ -13,7 +13,7 @@ func InitBreaker() *gobreaker.Settings {
 		Interval:    time.Second * 60,
 		Timeout:     time.Second * 10,
 		ReadyToTrip: func(counts gobreaker.Counts) bool {
-			return counts.ConsecutiveFailures > 3
+			return counts.ConsecutiveFailures > 1
 		},
 	}
 }

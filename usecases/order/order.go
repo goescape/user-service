@@ -234,8 +234,11 @@ func (ou *orderUsecase) CreateOrderDenganBreaker(ctx context.Context, req *model
 
 	orderURL := ou.ServiceOrderAddress + "/api/order/create"
 	orderRespIface, err := ou.orderServiceBreaker.Execute(func() (interface{}, error) {
+
+		ctxTimeout, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
 		// Buat HTTP request dengan konteks
-		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, orderURL, bytes.NewBuffer(bodyBytes))
+		httpReq, err := http.NewRequestWithContext(ctxTimeout, http.MethodPost, orderURL, bytes.NewBuffer(bodyBytes))
 		if err != nil {
 			return nil, err
 		}
@@ -265,7 +268,7 @@ func (ou *orderUsecase) CreateOrderDenganBreaker(ctx context.Context, req *model
 		return &successResp, nil
 	})
 	if err != nil {
-		log.Println("[CB] Failed to call order service:", err)
+		log.Println("[CB] Failed to call order service:", errors.New("SERVICE_UNAVAILABLE"))
 		return nil, err
 	}
 	orderResp := orderRespIface.(*model.CreateOrderResp)
@@ -273,7 +276,6 @@ func (ou *orderUsecase) CreateOrderDenganBreaker(ctx context.Context, req *model
 	// Return response dari order service
 	return orderResp, nil
 }
-
 
 func (ou *orderUsecase) PaidOrder(req *model.PayOrderModel) error {
 	newData, _ := json.Marshal(req)                             // Serialize request ke JSON
