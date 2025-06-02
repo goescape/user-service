@@ -168,10 +168,9 @@ func (ou *orderUsecase) CreateOrder(ctx context.Context, req *model.CreateOrderR
 
 // dengan breaker
 func (ou *orderUsecase) CreateOrderDenganBreaker(ctx context.Context, req *model.CreateOrderReq) (*model.CreateOrderResp, error) {
-	// Persiapan ID produk dan payload reduce stock
+	// Persiapan ID produk dan payload untuk pengurangan stok
 	var productIds []string
 	reduceProductQty := make([]*product.ProductItem, 0, len(req.Items))
-
 	for _, item := range req.Items {
 		productIds = append(productIds, item.ProductId)
 		reduceProductQty = append(reduceProductQty, &product.ProductItem{
@@ -180,15 +179,17 @@ func (ou *orderUsecase) CreateOrderDenganBreaker(ctx context.Context, req *model
 		})
 	}
 
-	// --- Circuit Breaker untuk Product Service ---
+	// --- Circuit Breaker untuk memanggil Product Service ---
 	productListReq := &product.ListProductRequest{
 		ProductIds: strings.Join(productIds, ","),
 	}
 
+	// Eksekusi pemanggilan gRPC ke Product Service menggunakan circuit breaker
 	productListRespIface, err := ou.productBreaker.Execute(func() (interface{}, error) {
-		return ou.serverRPC.ListProduct(ctx, productListReq) // gRPC call dibungkus circuit breaker
+		return ou.serverRPC.ListProduct(ctx, productListReq)
 	})
 
+	// Logging status circuit breaker saat ini
 	state := ou.productBreaker.State()
 	switch state {
 	case gobreaker.StateClosed:
@@ -198,13 +199,14 @@ func (ou *orderUsecase) CreateOrderDenganBreaker(ctx context.Context, req *model
 	case gobreaker.StateHalfOpen:
 		log.Println("[CB] Product Breaker State: HALF-OPEN")
 	}
+
 	if err != nil {
 		log.Println("[CB] Failed to call product service:", err)
 		return nil, errors.New("SERVICE_UNAVAILABLE")
 	}
 	productListResp := productListRespIface.(*product.ListProductResponse)
 
-	// Validasi apakah semua produk tersedia dan mencukupi jumlahnya
+	// Validasi ketersediaan dan stok produk yang dipesan
 	for _, item := range req.Items {
 		found := false
 		for _, p := range productListResp.Items {
@@ -223,7 +225,7 @@ func (ou *orderUsecase) CreateOrderDenganBreaker(ctx context.Context, req *model
 		}
 	}
 
-	// --- Kirim HTTP Request ke Order Service ---
+	// --- Panggil Order Service via HTTP POST (dengan circuit breaker) ---
 	bodyBytes, err := json.Marshal(req)
 	if err != nil {
 		log.Println("Failed to marshal order request:", err)
@@ -232,18 +234,24 @@ func (ou *orderUsecase) CreateOrderDenganBreaker(ctx context.Context, req *model
 
 	orderURL := ou.ServiceOrderAddress + "/api/order/create"
 	orderRespIface, err := ou.orderServiceBreaker.Execute(func() (interface{}, error) {
-		httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, orderURL, bytes.NewBuffer(bodyBytes))
+
+		ctxTimeout, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		// Buat HTTP request dengan konteks
+		httpReq, err := http.NewRequestWithContext(ctxTimeout, http.MethodPost, orderURL, bytes.NewBuffer(bodyBytes))
 		if err != nil {
 			return nil, err
 		}
 		httpReq.Header.Set("Content-Type", "application/json")
 
-		resp, err := http.DefaultClient.Do(httpReq) // HTTP call dibungkus circuit breaker
+		// Kirim HTTP request
+		resp, err := http.DefaultClient.Do(httpReq)
 		if err != nil {
 			return nil, err
 		}
 		defer resp.Body.Close()
 
+		// Tangani response dengan status selain 200 OK
 		if resp.StatusCode != http.StatusOK {
 			var failResp any
 			json.NewDecoder(resp.Body).Decode(&failResp)
@@ -251,6 +259,7 @@ func (ou *orderUsecase) CreateOrderDenganBreaker(ctx context.Context, req *model
 			return nil, errors.New("SERVICE_UNAVAILABLE")
 		}
 
+		// Decode response sukses
 		var successResp model.CreateOrderResp
 		err = json.NewDecoder(resp.Body).Decode(&successResp)
 		if err != nil {
@@ -259,18 +268,12 @@ func (ou *orderUsecase) CreateOrderDenganBreaker(ctx context.Context, req *model
 		return &successResp, nil
 	})
 	if err != nil {
-		log.Println("[CB] Failed to call order service:", err)
+		log.Println("[CB] Failed to call order service:", errors.New("SERVICE_UNAVAILABLE"))
 		return nil, err
 	}
 	orderResp := orderRespIface.(*model.CreateOrderResp)
 
-	// --- Reduce Stock (tanpa circuit breaker, bisa dipertimbangkan ditambah) ---
-	reduceReq := &product.ReduceProductsRequest{Items: reduceProductQty}
-	if _, err := ou.serverRPC.ReduceProducts(ctx, reduceReq); err != nil {
-		log.Println("Failed to reduce product stock:", err)
-		// Tidak return error agar order tetap sukses
-	}
-
+	// Return response dari order service
 	return orderResp, nil
 }
 

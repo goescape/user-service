@@ -163,7 +163,6 @@ func (h *Handler) CreateOrderDeanganBreaker(ctx *gin.Context) {
 	bRes, err := h.service.CreateOrderDenganBreaker(ctx.Request.Context(), &body)
 
 	if err != nil {
-		// Cek error retry khusus
 		if strings.Contains(err.Error(), "SERVICE_UNAVAILABLE") {
 			fault.Response(ctx, fault.Custom(
 				http.StatusServiceUnavailable,

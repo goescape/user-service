@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 	"user-svc/helpers/cache"
@@ -171,6 +172,8 @@ func (u *userUsecase) Login(body model.UserLogin) (*model.LoginResponse, error) 
 			"user not found",
 		)
 	}
+
+	log.Println(user.Password, body.Password)
 
 	// Verifikasi password yang dimasukkan
 	if !middlewares.VerifyPassword(user.Password, body.Password) {
